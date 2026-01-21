@@ -83,6 +83,7 @@ def asymptotic_mk_test(
     genetic_code: GeneticCode | None = None,
     num_bins: int = 10,
     bootstrap_replicates: int = 100,
+    pool_polymorphisms: bool = False,
 ) -> AsymptoticMKResult:
     """Perform the asymptotic McDonald-Kreitman test.
 
@@ -99,6 +100,10 @@ def asymptotic_mk_test(
         genetic_code: Genetic code for translation (uses standard if None)
         num_bins: Number of frequency bins (default 10)
         bootstrap_replicates: Number of bootstrap replicates for CI (default 100)
+        pool_polymorphisms: If True, consider sites polymorphic in either
+            population (libsequence convention). Frequencies are still
+            calculated from ingroup only. If False (default), only consider
+            ingroup polymorphisms (DnaSP/original MK convention).
 
     Returns:
         AsymptoticMKResult containing test statistics
@@ -129,7 +134,13 @@ def asymptotic_mk_test(
     # Collect polymorphisms with their frequencies
     poly_data: list[tuple[float, str]] = []  # (frequency, type: 'N' or 'S')
 
-    for codon_idx in pair.polymorphic_sites_ingroup():
+    # Get polymorphic sites based on mode
+    if pool_polymorphisms:
+        poly_sites = pair.polymorphic_sites_pooled()
+    else:
+        poly_sites = pair.polymorphic_sites_ingroup()
+
+    for codon_idx in poly_sites:
         codons = list(ingroup.codon_set_clean(codon_idx))
         if len(codons) < 2:
             continue

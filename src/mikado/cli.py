@@ -114,6 +114,11 @@ def main() -> None:
     default=1,
     help="Reading frame (1, 2, or 3)",
 )
+@click.option(
+    "--pool-polymorphisms",
+    is_flag=True,
+    help="Pool polymorphisms from both populations (libsequence convention)",
+)
 def test(
     ingroup: Path,
     outgroup: Path | None,
@@ -123,6 +128,7 @@ def test(
     polarize_match: str | None,
     output_format: str,
     reading_frame: int,
+    pool_polymorphisms: bool,
 ) -> None:
     """Run the McDonald-Kreitman test.
 
@@ -197,12 +203,14 @@ def test(
                 outgroup1=outgroup_seqs,
                 outgroup2=outgroup2_seqs,
                 reading_frame=reading_frame,
+                pool_polymorphisms=pool_polymorphisms,
             )
         else:
             result = mk_test(
                 ingroup=ingroup_seqs,
                 outgroup=outgroup_seqs,
                 reading_frame=reading_frame,
+                pool_polymorphisms=pool_polymorphisms,
             )
     else:
         # Separate files mode (original behavior)
@@ -219,12 +227,14 @@ def test(
                 outgroup1=outgroup,
                 outgroup2=polarize,
                 reading_frame=reading_frame,
+                pool_polymorphisms=pool_polymorphisms,
             )
         else:
             result = mk_test(
                 ingroup=ingroup,
                 outgroup=outgroup,
                 reading_frame=reading_frame,
+                pool_polymorphisms=pool_polymorphisms,
             )
 
     click.echo(format_result(result, fmt))
@@ -269,6 +279,11 @@ def test(
     default=100,
     help="Number of bootstrap replicates for CI",
 )
+@click.option(
+    "--pool-polymorphisms",
+    is_flag=True,
+    help="Pool polymorphisms from both populations (libsequence convention)",
+)
 def asymptotic(
     ingroup: Path,
     outgroup: Path | None,
@@ -278,6 +293,7 @@ def asymptotic(
     reading_frame: int,
     bins: int,
     bootstrap: int,
+    pool_polymorphisms: bool,
 ) -> None:
     """Run the asymptotic McDonald-Kreitman test.
 
@@ -348,6 +364,7 @@ def asymptotic(
             reading_frame=reading_frame,
             num_bins=bins,
             bootstrap_replicates=bootstrap,
+            pool_polymorphisms=pool_polymorphisms,
         )
     else:
         # Separate files mode (original behavior)
@@ -364,6 +381,7 @@ def asymptotic(
             reading_frame=reading_frame,
             num_bins=bins,
             bootstrap_replicates=bootstrap,
+            pool_polymorphisms=pool_polymorphisms,
         )
 
     click.echo(format_result(result, fmt))
@@ -438,6 +456,11 @@ def asymptotic(
     default=100,
     help="Bootstrap replicates for CI (asymptotic only)",
 )
+@click.option(
+    "--pool-polymorphisms",
+    is_flag=True,
+    help="Pool polymorphisms from both populations (libsequence convention)",
+)
 def batch(
     input_dir: Path,
     file_pattern: str,
@@ -452,6 +475,7 @@ def batch(
     polarize_pattern: str | None,
     bins: int,
     bootstrap: int,
+    pool_polymorphisms: bool,
 ) -> None:
     """Run MK test on multiple gene files.
 
@@ -544,6 +568,7 @@ def batch(
                             reading_frame=reading_frame,
                             num_bins=bins,
                             bootstrap_replicates=bootstrap,
+                            pool_polymorphisms=pool_polymorphisms,
                         )
                     elif polarize_match:
                         outgroup2_seqs = all_seqs.filter_by_name(polarize_match)
@@ -558,12 +583,14 @@ def batch(
                             outgroup1=outgroup_seqs,
                             outgroup2=outgroup2_seqs,
                             reading_frame=reading_frame,
+                            pool_polymorphisms=pool_polymorphisms,
                         )
                     else:
                         result = mk_test(
                             ingroup=ingroup_seqs,
                             outgroup=outgroup_seqs,
                             reading_frame=reading_frame,
+                            pool_polymorphisms=pool_polymorphisms,
                         )
                     results.append((alignment_file.stem, result))
                 except Exception as e:
@@ -650,6 +677,7 @@ def batch(
                             reading_frame=reading_frame,
                             num_bins=bins,
                             bootstrap_replicates=bootstrap,
+                            pool_polymorphisms=pool_polymorphisms,
                         )
                     elif polarize_pattern and outgroup2_file:
                         result = polarized_mk_test(
@@ -657,12 +685,14 @@ def batch(
                             outgroup1=outgroup_file,
                             outgroup2=outgroup2_file,
                             reading_frame=reading_frame,
+                            pool_polymorphisms=pool_polymorphisms,
                         )
                     else:
                         result = mk_test(
                             ingroup=ingroup_file,
                             outgroup=outgroup_file,
                             reading_frame=reading_frame,
+                            pool_polymorphisms=pool_polymorphisms,
                         )
                     results.append((ingroup_file.stem, result))
                 except Exception as e:

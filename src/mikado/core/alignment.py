@@ -109,6 +109,27 @@ class AlignedPair:
         """
         return self.ingroup.polymorphic_codons()
 
+    def polymorphic_sites_outgroup(self) -> list[int]:
+        """Get all codon indices polymorphic within the outgroup.
+
+        Returns:
+            List of codon indices
+        """
+        return self.outgroup.polymorphic_codons()
+
+    def polymorphic_sites_pooled(self) -> list[int]:
+        """Get all codon indices polymorphic in either population (union).
+
+        This follows the libsequence convention of pooling polymorphisms
+        from both populations.
+
+        Returns:
+            List of unique codon indices (sorted)
+        """
+        ingroup_poly = set(self.ingroup.polymorphic_codons())
+        outgroup_poly = set(self.outgroup.polymorphic_codons())
+        return sorted(ingroup_poly | outgroup_poly)
+
     def classify_fixed_difference(
         self, codon_index: int
     ) -> tuple[int, int] | None:
@@ -182,6 +203,71 @@ class AlignedPair:
             return None
 
         major_codon = max(freqs.keys(), key=lambda c: freqs[c])
+        for codon in codons:
+            if codon == major_codon:
+                continue
+            path = self.genetic_code.get_path(major_codon, codon)
+            if path:
+                for change_type, pos in path:
+                    if pos not in counted_positions:
+                        if change_type == "R":
+                            total_nonsyn += 1
+                        else:
+                            total_syn += 1
+                        counted_positions.add(pos)
+
+        return (total_nonsyn, total_syn)
+
+    def classify_polymorphism_pooled(
+        self, codon_index: int
+    ) -> tuple[int, int] | None:
+        """Classify a polymorphism using codons from both populations.
+
+        This follows the libsequence convention of using all unique codons
+        from both ingroup and outgroup when classifying polymorphisms.
+
+        Args:
+            codon_index: Zero-based codon index
+
+        Returns:
+            Tuple of (non_synonymous_count, synonymous_count), or None if
+            not a valid polymorphism
+        """
+        # Get unique codons from both populations
+        codons = list(self.combined_codon_set_clean(codon_index))
+
+        if len(codons) < 2:
+            return None
+
+        if len(codons) == 2:
+            path = self.genetic_code.get_path(codons[0], codons[1])
+            if not path:
+                return None
+            nonsyn = sum(1 for change_type, _ in path if change_type == "R")
+            syn = sum(1 for change_type, _ in path if change_type == "S")
+            return (nonsyn, syn)
+
+        # For >2 codons, find shortest paths from most common to others
+        # Use combined frequency spectrum
+        total_nonsyn = 0
+        total_syn = 0
+        counted_positions: set[int] = set()
+
+        # Get frequencies from both populations
+        in_freqs = self.ingroup.site_frequency_spectrum(codon_index)
+        out_freqs = self.outgroup.site_frequency_spectrum(codon_index)
+
+        # Merge frequencies
+        combined_freqs: dict[str, int] = {}
+        for codon, count in (in_freqs or {}).items():
+            combined_freqs[codon] = combined_freqs.get(codon, 0) + count
+        for codon, count in (out_freqs or {}).items():
+            combined_freqs[codon] = combined_freqs.get(codon, 0) + count
+
+        if not combined_freqs:
+            return None
+
+        major_codon = max(combined_freqs.keys(), key=lambda c: combined_freqs[c])
         for codon in codons:
             if codon == major_codon:
                 continue

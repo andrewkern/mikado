@@ -87,6 +87,7 @@ def polarized_mk_test(
     outgroup2: SequenceSet | str | Path,
     reading_frame: int = 1,
     genetic_code: GeneticCode | None = None,
+    pool_polymorphisms: bool = False,
 ) -> PolarizedMKResult:
     """Perform a polarized McDonald-Kreitman test.
 
@@ -100,6 +101,9 @@ def polarized_mk_test(
             (used for polarization)
         reading_frame: Reading frame (1, 2, or 3)
         genetic_code: Genetic code for translation (uses standard if None)
+        pool_polymorphisms: If True, count polymorphisms from both ingroup
+            and outgroup1 (libsequence convention). If False (default), count
+            only ingroup polymorphisms (DnaSP/original MK convention).
 
     Returns:
         PolarizedMKResult containing test statistics
@@ -150,12 +154,21 @@ def polarized_mk_test(
                     dn_out += nonsyn
                     ds_out += syn
 
-    # Count polymorphisms within ingroup (same as unpolarized)
+    # Count polymorphisms
     pn_in = 0
     ps_in = 0
 
-    for codon_idx in pair.polymorphic_sites_ingroup():
-        result = pair.classify_polymorphism(codon_idx)
+    if pool_polymorphisms:
+        # Pooled mode: count polymorphisms from both populations (libsequence convention)
+        poly_sites = pair.polymorphic_sites_pooled()
+        classify_func = pair.classify_polymorphism_pooled
+    else:
+        # Standard mode: count only ingroup polymorphisms (DnaSP convention)
+        poly_sites = pair.polymorphic_sites_ingroup()
+        classify_func = pair.classify_polymorphism
+
+    for codon_idx in poly_sites:
+        result = classify_func(codon_idx)
         if result is not None:
             nonsyn, syn = result
             pn_in += nonsyn
