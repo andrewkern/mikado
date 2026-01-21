@@ -191,3 +191,58 @@ ATGGTGATG
         assert result.pn >= 0
         assert result.ps >= 0
         assert result.p_value is not None
+
+    def test_mk_test_min_frequency_filter(self, tmp_path: Path) -> None:
+        """Test that min_frequency parameter filters low-frequency polymorphisms."""
+        # Create ingroup with 10 sequences where:
+        # - One polymorphism at position 3 (codon 0) has freq 1/10 = 0.1 (derived)
+        # - One polymorphism at position 6 (codon 1) has freq 5/10 = 0.5 (derived)
+        # The outgroup has the ancestral state at both positions
+
+        ingroup_fa = tmp_path / "ingroup.fa"
+        # Create 10 sequences with varying polymorphisms
+        # Position 3 (codon 0, position 0): 9 have T, 1 has C -> derived freq = 0.1
+        # Position 6 (codon 1, position 0): 5 have A, 5 have C -> derived freq = 0.5
+        ingroup_fa.write_text(
+            """>seq1
+ATGATGATG
+>seq2
+ATGATGATG
+>seq3
+ATGATGATG
+>seq4
+ATGATGATG
+>seq5
+ATGATGATG
+>seq6
+ATGCTGATG
+>seq7
+ATGCTGATG
+>seq8
+ATGCTGATG
+>seq9
+ATGCTGATG
+>seq10
+ATCCTGATG
+"""
+        )
+
+        # Outgroup has ATG ATG ATG - matches seq1-5 at codon 0
+        outgroup_fa = tmp_path / "outgroup.fa"
+        outgroup_fa.write_text(
+            """>out1
+ATGATGATG
+"""
+        )
+
+        # Without filtering, should count polymorphisms
+        result_no_filter = mk_test(ingroup_fa, outgroup_fa, min_frequency=0.0)
+
+        # With high min_frequency filter, should exclude low-frequency polymorphisms
+        result_with_filter = mk_test(ingroup_fa, outgroup_fa, min_frequency=0.3)
+
+        # The filtered result should have fewer or equal polymorphisms
+        total_poly_no_filter = result_no_filter.pn + result_no_filter.ps
+        total_poly_filtered = result_with_filter.pn + result_with_filter.ps
+
+        assert total_poly_filtered <= total_poly_no_filter

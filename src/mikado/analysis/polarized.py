@@ -88,6 +88,7 @@ def polarized_mk_test(
     reading_frame: int = 1,
     genetic_code: GeneticCode | None = None,
     pool_polymorphisms: bool = False,
+    min_frequency: float = 0.0,
 ) -> PolarizedMKResult:
     """Perform a polarized McDonald-Kreitman test.
 
@@ -104,6 +105,10 @@ def polarized_mk_test(
         pool_polymorphisms: If True, count polymorphisms from both ingroup
             and outgroup1 (libsequence convention). If False (default), count
             only ingroup polymorphisms (DnaSP/original MK convention).
+        min_frequency: Minimum derived allele frequency for a polymorphism
+            to be counted (default 0.0, i.e., include all polymorphisms).
+            Useful for filtering out rare variants that may be slightly
+            deleterious.
 
     Returns:
         PolarizedMKResult containing test statistics
@@ -168,6 +173,34 @@ def polarized_mk_test(
         classify_func = pair.classify_polymorphism
 
     for codon_idx in poly_sites:
+        # Apply frequency filter if specified
+        if min_frequency > 0:
+            # Get frequency spectrum from ingroup
+            freqs = ingroup.site_frequency_spectrum(codon_idx)
+            if not freqs:
+                continue
+
+            # Get outgroup2 codons to determine ancestral state
+            out_codons = outgroup2.codon_set_clean(codon_idx)
+            if not out_codons:
+                continue
+
+            # Find ancestral codon (shared between ingroup and outgroup2)
+            ingroup_codons = set(freqs.keys())
+            shared_codons = ingroup_codons & out_codons
+            if not shared_codons:
+                continue
+
+            # Use the most frequent shared codon as ancestral
+            ancestral = max(shared_codons, key=lambda c: freqs.get(c, 0))
+
+            # Calculate derived allele frequency
+            derived_freq = 1.0 - freqs[ancestral]
+
+            # Skip if below minimum frequency threshold
+            if derived_freq < min_frequency:
+                continue
+
         result = classify_func(codon_idx)
         if result is not None:
             nonsyn, syn = result

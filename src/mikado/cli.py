@@ -137,6 +137,13 @@ def test(
         bool,
         typer.Option(help="Pool polymorphisms from both populations (libsequence convention)"),
     ] = False,
+    min_freq: Annotated[
+        float,
+        typer.Option(
+            "--min-freq",
+            help="Minimum derived allele frequency for polymorphisms (0.0-1.0)",
+        ),
+    ] = 0.0,
 ) -> None:
     """Run the McDonald-Kreitman test.
 
@@ -212,6 +219,7 @@ def test(
                 outgroup2=outgroup2_seqs,
                 reading_frame=reading_frame,
                 pool_polymorphisms=pool_polymorphisms,
+                min_frequency=min_freq,
             )
         else:
             result = mk_test(
@@ -219,6 +227,7 @@ def test(
                 outgroup=outgroup_seqs,
                 reading_frame=reading_frame,
                 pool_polymorphisms=pool_polymorphisms,
+                min_frequency=min_freq,
             )
     else:
         # Separate files mode (original behavior)
@@ -236,6 +245,7 @@ def test(
                 outgroup2=polarize,
                 reading_frame=reading_frame,
                 pool_polymorphisms=pool_polymorphisms,
+                min_frequency=min_freq,
             )
         else:
             result = mk_test(
@@ -243,6 +253,7 @@ def test(
                 outgroup=outgroup,
                 reading_frame=reading_frame,
                 pool_polymorphisms=pool_polymorphisms,
+                min_frequency=min_freq,
             )
 
     typer.echo(format_result(result, fmt))
@@ -451,6 +462,13 @@ def batch(
             help="Frequency range for fitting as 'low,high' (asymptotic only)",
         ),
     ] = "0.1,0.9",
+    min_freq: Annotated[
+        float,
+        typer.Option(
+            "--min-freq",
+            help="Minimum derived allele frequency for polymorphisms (standard MK only)",
+        ),
+    ] = 0.0,
 ) -> None:
     """Run MK test on multiple gene files.
 
@@ -635,6 +653,7 @@ def batch(
                             outgroup2=outgroup2_seqs,
                             reading_frame=reading_frame,
                             pool_polymorphisms=pool_polymorphisms,
+                            min_frequency=min_freq,
                         )
                     else:
                         result = mk_test(
@@ -642,6 +661,7 @@ def batch(
                             outgroup=outgroup_seqs,
                             reading_frame=reading_frame,
                             pool_polymorphisms=pool_polymorphisms,
+                            min_frequency=min_freq,
                         )
                     results.append((alignment_file.stem, result))
                 except Exception as e:
@@ -794,6 +814,7 @@ def batch(
                             outgroup2=outgroup2_file,
                             reading_frame=reading_frame,
                             pool_polymorphisms=pool_polymorphisms,
+                            min_frequency=min_freq,
                         )
                     else:
                         result = mk_test(
@@ -801,6 +822,7 @@ def batch(
                             outgroup=outgroup_file,
                             reading_frame=reading_frame,
                             pool_polymorphisms=pool_polymorphisms,
+                            min_frequency=min_freq,
                         )
                     results.append((ingroup_file.stem, result))
                 except Exception as e:
