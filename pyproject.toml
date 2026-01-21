@@ -8,14 +8,14 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "click>=8.3.1",
+    "typer>=0.15.0",
     "numpy>=2.4.1",
     "rich>=14.2.0",
     "scipy>=1.17.0",
 ]
 
 [project.scripts]
-mikado = "mikado.cli:main"
+mikado = "mikado.cli:app"
 
 [build-system]
 requires = ["uv_build>=0.9.5,<0.10.0"]
