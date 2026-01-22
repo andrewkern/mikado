@@ -99,6 +99,7 @@ mkado test FASTA [OUTGROUP_FILE] [OPTIONS]
 | `--polarize` | `-p` | Second outgroup file (separate files mode) |
 | `--polarize-match` | | Second outgroup pattern (combined mode) |
 | `--bins` | `-b` | Frequency bins for asymptotic test (default: 10) |
+| `--plot-asymptotic` | | Generate alpha(x) plot for asymptotic test (PNG, PDF, or SVG) |
 | `--format` | `-f` | Output format: pretty, tsv, json |
 | `--reading-frame` | `-r` | Reading frame 1-3 (default: 1) |
 
@@ -108,6 +109,7 @@ mkado test FASTA [OUTGROUP_FILE] [OPTIONS]
 # Combined file mode
 mkado test alignment.fa -i "dmel" -o "dsim"
 mkado test alignment.fa -i "dmel" -o "dsim" -a -b 20
+mkado test alignment.fa -i "dmel" -o "dsim" -a --plot-asymptotic alpha_fit.png
 mkado test alignment.fa -i "dmel" -o "dsim" --polarize-match "dyak"
 
 # Separate files mode
@@ -136,6 +138,7 @@ mkado batch DIRECTORY [OPTIONS]
 | `--bins` | `-b` | Frequency bins for asymptotic test |
 | `--format` | `-f` | Output format: pretty, tsv, json |
 | `--volcano` | | Generate volcano plot (PNG, PDF, or SVG) |
+| `--plot-asymptotic` | | Generate alpha(x) plot for aggregated asymptotic test |
 
 **Examples:**
 
@@ -148,6 +151,9 @@ mkado batch alignments/ -i "dmel" -o "dsim" -w 8
 
 # Generate a volcano plot
 mkado batch alignments/ -i "dmel" -o "dsim" --volcano results.png
+
+# Generate asymptotic alpha(x) plot
+mkado batch alignments/ -i "dmel" -o "dsim" -a --plot-asymptotic alpha_fit.png
 
 # Separate files mode
 mkado batch genes/ --ingroup-pattern "*_in.fa" --outgroup-pattern "*_out.fa"

@@ -51,7 +51,11 @@ class AsymptoticMKResult:
 
     # Frequency bins and alpha estimates
     frequency_bins: list[float] = field(default_factory=list)
+    """All frequency bin centers."""
     alpha_by_freq: list[float] = field(default_factory=list)
+    """Alpha values for bins with valid data (same length as alpha_x_values)."""
+    alpha_x_values: list[float] = field(default_factory=list)
+    """X values (frequency bin centers) corresponding to alpha_by_freq."""
 
     # Asymptotic alpha estimate (extrapolated to x=1)
     alpha_asymptotic: float = 0.0
@@ -117,6 +121,7 @@ class AsymptoticMKResult:
             },
             "frequency_bins": self.frequency_bins,
             "alpha_by_freq": self.alpha_by_freq,
+            "alpha_x_values": self.alpha_x_values,
         }
         if self.model_type == "exponential":
             result["fit_parameters"]["c"] = self.fit_c
@@ -420,6 +425,7 @@ def asymptotic_mk_test_aggregated(
         return AsymptoticMKResult(
             frequency_bins=list(bin_centers),
             alpha_by_freq=alpha_values,
+            alpha_x_values=valid_centers,
             alpha_asymptotic=simple_alpha or 0.0,
             ci_low=simple_alpha or 0.0,
             ci_high=simple_alpha or 0.0,
@@ -542,6 +548,7 @@ def asymptotic_mk_test_aggregated(
         return AsymptoticMKResult(
             frequency_bins=list(bin_centers),
             alpha_by_freq=alpha_values,
+            alpha_x_values=valid_centers,
             alpha_asymptotic=y_data[-1],
             ci_low=y_data[-1],
             ci_high=y_data[-1],
@@ -557,6 +564,7 @@ def asymptotic_mk_test_aggregated(
         return AsymptoticMKResult(
             frequency_bins=list(bin_centers),
             alpha_by_freq=alpha_values,
+            alpha_x_values=valid_centers,
             alpha_asymptotic=exp_alpha,
             ci_low=ci_low_exp,
             ci_high=ci_high_exp,
@@ -575,6 +583,7 @@ def asymptotic_mk_test_aggregated(
         return AsymptoticMKResult(
             frequency_bins=list(bin_centers),
             alpha_by_freq=alpha_values,
+            alpha_x_values=valid_centers,
             alpha_asymptotic=lin_alpha,
             ci_low=ci_low_lin,
             ci_high=ci_high_lin,
@@ -739,6 +748,7 @@ def asymptotic_mk_test(
         return AsymptoticMKResult(
             frequency_bins=list(bin_centers),
             alpha_by_freq=alpha_values,
+            alpha_x_values=valid_centers,
             alpha_asymptotic=simple_alpha or 0.0,
             ci_low=simple_alpha or 0.0,
             ci_high=simple_alpha or 0.0,
@@ -841,6 +851,7 @@ def asymptotic_mk_test(
     return AsymptoticMKResult(
         frequency_bins=list(bin_centers),
         alpha_by_freq=alpha_values,
+        alpha_x_values=valid_centers,
         alpha_asymptotic=alpha_asymp,
         ci_low=ci_low,
         ci_high=ci_high,

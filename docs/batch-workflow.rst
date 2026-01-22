@@ -74,6 +74,24 @@ Aggregated Analysis
 
 This outputs a single asymptotic alpha estimate for the entire gene set.
 
+Asymptotic Alpha Plot
+^^^^^^^^^^^^^^^^^^^^^
+
+When running aggregated asymptotic analysis, you can generate a plot showing how α(x) varies with derived allele frequency, similar to Messer & Petrov (2013):
+
+.. code-block:: bash
+
+   # Generate alpha(x) vs frequency plot
+   mkado batch alignments/ -i species1 -o species2 -a --plot-asymptotic alpha_fit.png
+
+The plot shows:
+
+- **Scatter points**: Observed α values at each frequency bin
+- **Fitted curve**: Exponential (or linear) fit to the data
+- **Horizontal line**: Asymptotic α estimate with 95% confidence interval band
+
+This visualization helps assess the fit quality and understand how slightly deleterious mutations affect α estimates at different frequencies.
+
 Per-Gene Analysis
 ^^^^^^^^^^^^^^^^^
 

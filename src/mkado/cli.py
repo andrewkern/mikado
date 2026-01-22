@@ -37,6 +37,19 @@ from mkado.analysis.polarized import PolarizedMKResult
 stderr_console = Console(stderr=True)
 
 
+def validate_path_not_flag(value: Path | None) -> Path | None:
+    """Validate that a Path argument doesn't look like a flag.
+
+    This catches common mistakes like: --option -a (where -a gets consumed as the path)
+    """
+    if value is not None and str(value).startswith("-"):
+        raise typer.BadParameter(
+            f"'{value}' looks like a flag, not a file path. "
+            "Check the order of your arguments."
+        )
+    return value
+
+
 def compute_adjusted_pvalues(
     results: list[tuple[str, MKResult | PolarizedMKResult]],
 ) -> list[float]:
@@ -275,6 +288,14 @@ def test(
         float,
         typer.Option("--min-freq", help="Min derived allele frequency (0.0-1.0)"),
     ] = 0.0,
+    plot_asymptotic: Annotated[
+        Optional[Path],
+        typer.Option(
+            "--plot-asymptotic",
+            help="Generate alpha(x) plot for asymptotic test (PNG, PDF, or SVG)",
+            callback=validate_path_not_flag,
+        ),
+    ] = None,
 ) -> None:
     """Run McDonald-Kreitman test on a single alignment.
 
@@ -442,6 +463,20 @@ def test(
 
     typer.echo(format_result(result, fmt))
 
+    # Generate asymptotic plot if requested
+    if plot_asymptotic and use_asymptotic:
+        from mkado.analysis.asymptotic import AsymptoticMKResult
+        from mkado.io.plotting import create_asymptotic_plot
+
+        if isinstance(result, AsymptoticMKResult):
+            try:
+                create_asymptotic_plot(result, plot_asymptotic)
+                typer.echo(f"Asymptotic plot saved to {plot_asymptotic}", err=True)
+            except ValueError as e:
+                typer.echo(f"Could not generate plot: {e}", err=True)
+    elif plot_asymptotic and not use_asymptotic:
+        typer.echo("Warning: --plot-asymptotic requires --asymptotic/-a flag", err=True)
+
 
 @app.command()
 def batch(
@@ -549,6 +584,15 @@ def batch(
         typer.Option(
             "--volcano",
             help="Generate volcano plot and save to specified path (PNG, PDF, or SVG)",
+            callback=validate_path_not_flag,
+        ),
+    ] = None,
+    plot_asymptotic: Annotated[
+        Optional[Path],
+        typer.Option(
+            "--plot-asymptotic",
+            help="Generate alpha(x) plot for aggregated asymptotic test (PNG, PDF, or SVG)",
+            callback=validate_path_not_flag,
         ),
     ] = None,
 ) -> None:
@@ -672,6 +716,16 @@ def batch(
                     frequency_cutoffs=frequency_cutoffs,
                 )
                 typer.echo(format_result(result, fmt))
+
+                # Generate asymptotic plot if requested
+                if plot_asymptotic:
+                    from mkado.io.plotting import create_asymptotic_plot
+
+                    try:
+                        create_asymptotic_plot(result, plot_asymptotic)
+                        typer.echo(f"Asymptotic plot saved to {plot_asymptotic}", err=True)
+                    except ValueError as e:
+                        typer.echo(f"Could not generate plot: {e}", err=True)
             else:
                 typer.echo("No valid gene data extracted", err=True)
             return
@@ -790,6 +844,16 @@ def batch(
                     frequency_cutoffs=frequency_cutoffs,
                 )
                 typer.echo(format_result(result, fmt))
+
+                # Generate asymptotic plot if requested
+                if plot_asymptotic:
+                    from mkado.io.plotting import create_asymptotic_plot
+
+                    try:
+                        create_asymptotic_plot(result, plot_asymptotic)
+                        typer.echo(f"Asymptotic plot saved to {plot_asymptotic}", err=True)
+                    except ValueError as e:
+                        typer.echo(f"Could not generate plot: {e}", err=True)
             else:
                 typer.echo("No valid gene data extracted", err=True)
             return
@@ -817,6 +881,13 @@ def batch(
                 typer.echo(f"Volcano plot saved to {volcano}", err=True)
             except ValueError as e:
                 typer.echo(f"Could not generate volcano plot: {e}", err=True)
+
+        # Warn if --plot-asymptotic was used without --asymptotic
+        if plot_asymptotic and not use_asymptotic:
+            typer.echo(
+                "Warning: --plot-asymptotic requires --asymptotic/-a flag (ignored)",
+                err=True,
+            )
     else:
         typer.echo("No results to display", err=True)
 

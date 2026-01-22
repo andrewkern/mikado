@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 if TYPE_CHECKING:
+    from mkado.analysis.asymptotic import AsymptoticMKResult
     from mkado.analysis.mk_test import MKResult
     from mkado.analysis.polarized import PolarizedMKResult
 
@@ -128,6 +129,135 @@ def create_volcano_plot(
         f"n = {len(ni_values)} genes, {sum(significant)} significant",
         fontsize=9,
         color="#7f8c8d",
+    )
+
+    # Tight layout and save
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+def create_asymptotic_plot(
+    result: AsymptoticMKResult,
+    output_path: Path,
+) -> None:
+    """Create an asymptotic MK test plot showing alpha(x) vs derived allele frequency.
+
+    This plot follows the style of Messer & Petrov (2013), showing:
+    - Scatter points of alpha at each frequency bin
+    - The fitted curve (exponential or linear)
+    - A horizontal line at alpha_asymptotic with confidence interval band
+
+    Args:
+        result: AsymptoticMKResult from asymptotic MK test
+        output_path: Path to save the plot (PNG, PDF, or SVG)
+    """
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+
+    # Set seaborn dark grid style for modern look
+    sns.set_theme(style="darkgrid")
+
+    # Extract data - use alpha_x_values if available, otherwise fall back to frequency_bins
+    if result.alpha_x_values and len(result.alpha_x_values) == len(result.alpha_by_freq):
+        x_data = np.array(result.alpha_x_values)
+    else:
+        x_data = np.array(result.frequency_bins)
+    y_data = np.array(result.alpha_by_freq)
+
+    if len(x_data) == 0 or len(y_data) == 0:
+        raise ValueError("No frequency bin data available for plotting")
+
+    if len(x_data) != len(y_data):
+        raise ValueError(
+            f"Mismatched data: {len(x_data)} x values vs {len(y_data)} alpha values"
+        )
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(10, 8))
+
+    # Plot scatter points
+    ax.scatter(
+        x_data,
+        y_data,
+        c="#2c3e50",
+        alpha=0.8,
+        edgecolors="white",
+        linewidth=0.5,
+        s=80,
+        zorder=3,
+        label="Observed α(x)",
+    )
+
+    # Plot confidence interval band for alpha_asymptotic
+    ax.fill_between(
+        [0, 1],
+        [result.ci_low, result.ci_low],
+        [result.ci_high, result.ci_high],
+        color="#95a5a6",
+        alpha=0.3,
+        zorder=1,
+        label=f"95% CI ({result.ci_low:.2f} - {result.ci_high:.2f})",
+    )
+
+    # Plot alpha_asymptotic horizontal line
+    ax.axhline(
+        y=result.alpha_asymptotic,
+        color="#e74c3c",
+        linestyle="--",
+        linewidth=2,
+        zorder=2,
+        label=f"α$_{{asym}}$ = {result.alpha_asymptotic:.2f}",
+    )
+
+    # Plot fitted curve
+    x_curve = np.linspace(0.05, 1.0, 100)
+    if result.model_type == "exponential":
+        y_curve = result.fit_a + result.fit_b * np.exp(-result.fit_c * x_curve)
+        fit_label = f"Fit: a + b·e$^{{-cx}}$"
+    else:
+        y_curve = result.fit_a + result.fit_b * x_curve
+        fit_label = f"Fit: a + b·x"
+
+    ax.plot(
+        x_curve,
+        y_curve,
+        color="#e74c3c",
+        linewidth=2,
+        zorder=2,
+        label=fit_label,
+    )
+
+    # Labels and title
+    ax.set_xlabel("Derived allele frequency x", fontsize=12)
+    ax.set_ylabel("MK α(x)", fontsize=12)
+    ax.set_title("Asymptotic MK Test: α(x) vs Frequency", fontsize=14, fontweight="bold")
+
+    # Set axis limits
+    ax.set_xlim(0, 1.05)
+
+    # Add legend
+    ax.legend(loc="lower right", framealpha=0.9)
+
+    # Add annotation with fit parameters
+    if result.model_type == "exponential":
+        param_text = f"a = {result.fit_a:.3f}, b = {result.fit_b:.3f}, c = {result.fit_c:.3f}"
+    else:
+        param_text = f"a = {result.fit_a:.3f}, b = {result.fit_b:.3f}"
+
+    # Add gene count if aggregated
+    if result.num_genes > 0:
+        param_text += f"\nn = {result.num_genes} genes"
+
+    ax.text(
+        0.02,
+        0.98,
+        param_text,
+        transform=ax.transAxes,
+        fontsize=9,
+        verticalalignment="top",
+        color="#7f8c8d",
+        family="monospace",
     )
 
     # Tight layout and save

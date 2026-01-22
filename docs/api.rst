@@ -178,6 +178,24 @@ Generating Volcano Plots
    # Generate volcano plot
    create_volcano_plot(results, Path("volcano.png"))
 
+Generating Asymptotic Plots
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: python
+
+   from pathlib import Path
+   from mkado import asymptotic_mk_test, SequenceSet
+   from mkado.io.plotting import create_asymptotic_plot
+
+   # Run asymptotic MK test
+   seqs = SequenceSet.from_fasta("alignment.fa")
+   ingroup = seqs.filter_by_name("species1")
+   outgroup = seqs.filter_by_name("species2")
+   result = asymptotic_mk_test(ingroup, outgroup)
+
+   # Generate alpha(x) vs frequency plot
+   create_asymptotic_plot(result, Path("asymptotic_fit.png"))
+
 Plotting Functions
 ------------------
 
