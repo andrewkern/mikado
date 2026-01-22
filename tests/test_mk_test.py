@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from mikado.analysis.mk_test import MKResult, mk_test, mk_test_from_counts
-from mikado.analysis.statistics import alpha, fishers_exact, neutrality_index
-from mikado.core.sequences import SequenceSet
+from mkado.analysis.mk_test import MKResult, mk_test, mk_test_from_counts
+from mkado.analysis.statistics import alpha, fishers_exact, neutrality_index
+from mkado.core.sequences import SequenceSet
 
 
 class TestStatistics:

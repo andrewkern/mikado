@@ -5,7 +5,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import TYPE_CHECKING
 
-from mikado.data.genetic_codes import CODON_PATHS, STANDARD_CODE
+from mkado.data.genetic_codes import CODON_PATHS, STANDARD_CODE
 
 if TYPE_CHECKING:
     pass

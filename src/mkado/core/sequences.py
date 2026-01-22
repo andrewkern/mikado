@@ -8,8 +8,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from mikado.core.codons import DEFAULT_CODE, GeneticCode
-from mikado.io.fasta import read_fasta
+from mkado.core.codons import DEFAULT_CODE, GeneticCode
+from mkado.io.fasta import read_fasta
 
 if TYPE_CHECKING:
     pass

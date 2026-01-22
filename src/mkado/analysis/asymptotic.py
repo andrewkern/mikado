@@ -12,9 +12,9 @@ from typing import TYPE_CHECKING, Callable
 import numpy as np
 from scipy import optimize
 
-from mikado.core.alignment import AlignedPair
-from mikado.core.codons import DEFAULT_CODE, GeneticCode
-from mikado.core.sequences import SequenceSet
+from mkado.core.alignment import AlignedPair
+from mkado.core.codons import DEFAULT_CODE, GeneticCode
+from mkado.core.sequences import SequenceSet
 
 if TYPE_CHECKING:
     pass

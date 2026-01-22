@@ -1,4 +1,4 @@
-# Mikado
+# mkado
 
 A modern Python implementation of the McDonald-Kreitman test toolkit for detecting selection in molecular evolution.
 
@@ -14,8 +14,8 @@ A modern Python implementation of the McDonald-Kreitman test toolkit for detecti
 
 ```bash
 # Clone the repository
-git clone https://github.com/andrewkern/mikado.git
-cd mikado
+git clone https://github.com/andrewkern/mkado.git
+cd mkado
 
 # Install with uv
 uv sync
@@ -28,35 +28,35 @@ pip install .
 
 ```bash
 # Standard MK test (combined alignment file)
-mikado test alignment.fa -i "dmel" -o "dsim"
+mkado test alignment.fa -i "dmel" -o "dsim"
 
 # Asymptotic MK test
-mikado test alignment.fa -i "dmel" -o "dsim" -a
+mkado test alignment.fa -i "dmel" -o "dsim" -a
 
 # Polarized MK test
-mikado test alignment.fa -i "dmel" -o "dsim" --polarize-match "dyak"
+mkado test alignment.fa -i "dmel" -o "dsim" --polarize-match "dyak"
 
 # Batch process a directory
-mikado batch alignments/ -i "dmel" -o "dsim"
+mkado batch alignments/ -i "dmel" -o "dsim"
 
 # Batch with asymptotic test and 8 parallel workers
-mikado batch alignments/ -i "dmel" -o "dsim" -a -w 8
+mkado batch alignments/ -i "dmel" -o "dsim" -a -w 8
 
 # Get file info
-mikado info sequences.fa
+mkado info sequences.fa
 ```
 
 ## Usage Modes
 
-Mikado supports two modes for specifying ingroup/outgroup sequences:
+mkado supports two modes for specifying ingroup/outgroup sequences:
 
 ### Combined File Mode (Recommended)
 
 Use `-i` and `-o` to filter sequences by name pattern from a single alignment file:
 
 ```bash
-mikado test alignment.fa -i "speciesA" -o "speciesB"
-mikado batch alignments/ -i "speciesA" -o "speciesB"
+mkado test alignment.fa -i "speciesA" -o "speciesB"
+mkado batch alignments/ -i "speciesA" -o "speciesB"
 ```
 
 ### Separate Files Mode
@@ -64,18 +64,18 @@ mikado batch alignments/ -i "speciesA" -o "speciesB"
 Provide separate FASTA files for ingroup and outgroup:
 
 ```bash
-mikado test ingroup.fa outgroup.fa
-mikado batch genes/ --ingroup-pattern "*_in.fa" --outgroup-pattern "*_out.fa"
+mkado test ingroup.fa outgroup.fa
+mkado batch genes/ --ingroup-pattern "*_in.fa" --outgroup-pattern "*_out.fa"
 ```
 
 ## Commands
 
-### `mikado test`
+### `mkado test`
 
 Run MK test on a single alignment.
 
 ```bash
-mikado test FASTA [OUTGROUP_FILE] [OPTIONS]
+mkado test FASTA [OUTGROUP_FILE] [OPTIONS]
 ```
 
 **Key Options:**
@@ -94,22 +94,22 @@ mikado test FASTA [OUTGROUP_FILE] [OPTIONS]
 
 ```bash
 # Combined file mode
-mikado test alignment.fa -i "dmel" -o "dsim"
-mikado test alignment.fa -i "dmel" -o "dsim" -a -b 20
-mikado test alignment.fa -i "dmel" -o "dsim" --polarize-match "dyak"
+mkado test alignment.fa -i "dmel" -o "dsim"
+mkado test alignment.fa -i "dmel" -o "dsim" -a -b 20
+mkado test alignment.fa -i "dmel" -o "dsim" --polarize-match "dyak"
 
 # Separate files mode
-mikado test ingroup.fa outgroup.fa
-mikado test ingroup.fa outgroup.fa -a
-mikado test ingroup.fa outgroup.fa -p outgroup2.fa
+mkado test ingroup.fa outgroup.fa
+mkado test ingroup.fa outgroup.fa -a
+mkado test ingroup.fa outgroup.fa -p outgroup2.fa
 ```
 
-### `mikado batch`
+### `mkado batch`
 
 Run MK test on multiple alignment files.
 
 ```bash
-mikado batch DIRECTORY [OPTIONS]
+mkado batch DIRECTORY [OPTIONS]
 ```
 
 **Key Options:**
@@ -128,27 +128,27 @@ mikado batch DIRECTORY [OPTIONS]
 
 ```bash
 # Combined file mode (recommended)
-mikado batch alignments/ -i "dmel" -o "dsim"
-mikado batch alignments/ -i "dmel" -o "dsim" -a
-mikado batch alignments/ -i "dmel" -o "dsim" -a --per-gene
-mikado batch alignments/ -i "dmel" -o "dsim" -w 8
+mkado batch alignments/ -i "dmel" -o "dsim"
+mkado batch alignments/ -i "dmel" -o "dsim" -a
+mkado batch alignments/ -i "dmel" -o "dsim" -a --per-gene
+mkado batch alignments/ -i "dmel" -o "dsim" -w 8
 
 # Separate files mode
-mikado batch genes/ --ingroup-pattern "*_in.fa" --outgroup-pattern "*_out.fa"
+mkado batch genes/ --ingroup-pattern "*_in.fa" --outgroup-pattern "*_out.fa"
 ```
 
-### `mikado info`
+### `mkado info`
 
 Display information about a FASTA file.
 
 ```bash
-mikado info FASTA [-r READING_FRAME]
+mkado info FASTA [-r READING_FRAME]
 ```
 
 ## Example Output
 
 ```
-$ mikado test alignment.fa -i "kreitman" -o "mauritiana"
+$ mkado test alignment.fa -i "kreitman" -o "mauritiana"
 
 Found 11 ingroup, 1 outgroup sequences
 MK Test Results:
@@ -162,7 +162,7 @@ MK Test Results:
 ## Python API
 
 ```python
-from mikado import mk_test, asymptotic_mk_test, SequenceSet
+from mkado import mk_test, asymptotic_mk_test, SequenceSet
 
 # Run MK test
 result = mk_test("ingroup.fa", "outgroup.fa")

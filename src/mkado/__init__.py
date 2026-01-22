@@ -2,11 +2,11 @@
 
 __version__ = "0.1.0"
 
-from mikado.core.sequences import Sequence, SequenceSet
-from mikado.core.codons import GeneticCode
-from mikado.analysis.mk_test import MKResult, mk_test
-from mikado.analysis.polarized import PolarizedMKResult, polarized_mk_test
-from mikado.analysis.asymptotic import AsymptoticMKResult, asymptotic_mk_test
+from mkado.core.sequences import Sequence, SequenceSet
+from mkado.core.codons import GeneticCode
+from mkado.analysis.mk_test import MKResult, mk_test
+from mkado.analysis.polarized import PolarizedMKResult, polarized_mk_test
+from mkado.analysis.asymptotic import AsymptoticMKResult, asymptotic_mk_test
 
 __all__ = [
     "Sequence",

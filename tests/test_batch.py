@@ -3,8 +3,8 @@
 from pathlib import Path
 from unittest.mock import patch
 
-from mikado.batch_workers import BatchTask, WorkerResult, process_gene
-from mikado.cli import get_worker_count, run_parallel_batch
+from mkado.batch_workers import BatchTask, WorkerResult, process_gene
+from mkado.cli import get_worker_count, run_parallel_batch
 
 
 class TestGetWorkerCount:

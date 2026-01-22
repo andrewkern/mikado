@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from mikado.analysis.asymptotic import (
+from mkado.analysis.asymptotic import (
     AggregatedSFS,
     AsymptoticMKResult,
     PolymorphismData,
@@ -203,7 +203,7 @@ ATGGTGATGGTGATGGTG
 
     def test_extract_matches_standard_mk_counts(self, tmp_path: Path) -> None:
         """Test that extracted counts match standard MK test."""
-        from mikado.analysis.mk_test import mk_test
+        from mkado.analysis.mk_test import mk_test
 
         ingroup_fa = tmp_path / "ingroup.fa"
         ingroup_fa.write_text(""">seq1

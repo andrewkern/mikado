@@ -6,10 +6,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from mikado.analysis.statistics import alpha, fishers_exact, neutrality_index
-from mikado.core.alignment import AlignedPair
-from mikado.core.codons import DEFAULT_CODE, GeneticCode
-from mikado.core.sequences import SequenceSet
+from mkado.analysis.statistics import alpha, fishers_exact, neutrality_index
+from mkado.core.alignment import AlignedPair
+from mkado.core.codons import DEFAULT_CODE, GeneticCode
+from mkado.core.sequences import SequenceSet
 
 if TYPE_CHECKING:
     pass

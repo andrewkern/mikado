@@ -7,9 +7,9 @@ from enum import Enum
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from mikado.analysis.asymptotic import AsymptoticMKResult
-    from mikado.analysis.mk_test import MKResult
-    from mikado.analysis.polarized import PolarizedMKResult
+    from mkado.analysis.asymptotic import AsymptoticMKResult
+    from mkado.analysis.mk_test import MKResult
+    from mkado.analysis.polarized import PolarizedMKResult
 
 
 class OutputFormat(Enum):
@@ -48,9 +48,9 @@ def format_result(
 
 def _format_tsv(result: MKResult | PolarizedMKResult | AsymptoticMKResult) -> str:
     """Format results as tab-separated values."""
-    from mikado.analysis.asymptotic import AsymptoticMKResult
-    from mikado.analysis.mk_test import MKResult
-    from mikado.analysis.polarized import PolarizedMKResult
+    from mkado.analysis.asymptotic import AsymptoticMKResult
+    from mkado.analysis.mk_test import MKResult
+    from mkado.analysis.polarized import PolarizedMKResult
 
     if isinstance(result, MKResult):
         header = "Dn\tDs\tPn\tPs\tp_value\tNI\talpha"
@@ -123,9 +123,9 @@ def format_batch_results(
         return json.dumps(data, indent=2)
 
     elif format == OutputFormat.TSV:
-        from mikado.analysis.asymptotic import AsymptoticMKResult
-        from mikado.analysis.mk_test import MKResult
-        from mikado.analysis.polarized import PolarizedMKResult
+        from mkado.analysis.asymptotic import AsymptoticMKResult
+        from mkado.analysis.mk_test import MKResult
+        from mkado.analysis.polarized import PolarizedMKResult
 
         if not results:
             return ""

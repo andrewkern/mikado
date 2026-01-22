@@ -94,13 +94,13 @@ def process_gene(task: BatchTask) -> WorkerResult:
         WorkerResult with the analysis result or error message
     """
     # Import here to avoid pickling issues
-    from mikado.analysis.asymptotic import (
+    from mkado.analysis.asymptotic import (
         asymptotic_mk_test,
         extract_polymorphism_data,
     )
-    from mikado.analysis.mk_test import mk_test
-    from mikado.analysis.polarized import polarized_mk_test
-    from mikado.core.sequences import SequenceSet
+    from mkado.analysis.mk_test import mk_test
+    from mkado.analysis.polarized import polarized_mk_test
+    from mkado.core.sequences import SequenceSet
 
     gene_id = task.file_path.stem
 

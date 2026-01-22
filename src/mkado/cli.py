@@ -1,4 +1,4 @@
-"""Command-line interface for Mikado."""
+"""Command-line interface for mkado."""
 
 from __future__ import annotations
 
@@ -19,15 +19,15 @@ from rich.progress import (
 )
 from rich.style import Style
 
-from mikado import __version__
-from mikado.analysis.asymptotic import (
+from mkado import __version__
+from mkado.analysis.asymptotic import (
     asymptotic_mk_test,
     asymptotic_mk_test_aggregated,
 )
-from mikado.analysis.mk_test import mk_test
-from mikado.analysis.polarized import polarized_mk_test
-from mikado.batch_workers import BatchTask, WorkerResult, process_gene
-from mikado.io.output import OutputFormat, format_batch_results, format_result
+from mkado.analysis.mk_test import mk_test
+from mkado.analysis.polarized import polarized_mk_test
+from mkado.batch_workers import BatchTask, WorkerResult, process_gene
+from mkado.io.output import OutputFormat, format_batch_results, format_result
 
 # Console that writes to stderr (so progress doesn't mix with data output)
 stderr_console = Console(stderr=True)
@@ -147,13 +147,13 @@ def find_alignment_files(input_dir: Path) -> list[Path]:
 def version_callback(value: bool) -> None:
     """Print version and exit."""
     if value:
-        typer.echo(f"mikado {__version__}")
+        typer.echo(f"mkado {__version__}")
         raise typer.Exit()
 
 
 app = typer.Typer(
-    name="mikado",
-    help="Mikado: McDonald-Kreitman test toolkit.\n\n"
+    name="mkado",
+    help="mkado: McDonald-Kreitman test toolkit.\n\n"
     "A modern Python implementation for detecting selection using "
     "the McDonald-Kreitman test and related methods.",
     no_args_is_help=True,
@@ -167,7 +167,7 @@ def main(
         typer.Option("--version", "-v", callback=version_callback, is_eager=True),
     ] = False,
 ) -> None:
-    """Mikado: McDonald-Kreitman test toolkit."""
+    """mkado: McDonald-Kreitman test toolkit."""
     pass
 
 
@@ -253,14 +253,14 @@ def test(
     1. COMBINED FILE MODE (recommended):
        Use -i and -o to filter sequences by name pattern from a single alignment.
 
-       mikado test alignment.fa -i "speciesA" -o "speciesB"
-       mikado test alignment.fa -i "gamb" -o "002019" --asymptotic
+       mkado test alignment.fa -i "speciesA" -o "speciesB"
+       mkado test alignment.fa -i "gamb" -o "002019" --asymptotic
 
     2. SEPARATE FILES MODE:
        Provide two FASTA files (ingroup and outgroup).
 
-       mikado test ingroup.fa outgroup.fa
-       mikado test ingroup.fa outgroup.fa -p outgroup2.fa  # polarized
+       mkado test ingroup.fa outgroup.fa
+       mkado test ingroup.fa outgroup.fa -p outgroup2.fa  # polarized
 
     ANALYSIS TYPES:
 
@@ -270,13 +270,13 @@ def test(
 
     EXAMPLES:
 
-        mikado test alignment.fa -i "dmel" -o "dsim"
-        mikado test alignment.fa -i "dmel" -o "dsim" -a -b 20
-        mikado test alignment.fa -i "dmel" -o "dsim" --polarize-match "dyak"
-        mikado test ingroup.fa outgroup.fa
-        mikado test ingroup.fa outgroup.fa -a
+        mkado test alignment.fa -i "dmel" -o "dsim"
+        mkado test alignment.fa -i "dmel" -o "dsim" -a -b 20
+        mkado test alignment.fa -i "dmel" -o "dsim" --polarize-match "dyak"
+        mkado test ingroup.fa outgroup.fa
+        mkado test ingroup.fa outgroup.fa -a
     """
-    from mikado.core.sequences import SequenceSet
+    from mkado.core.sequences import SequenceSet
 
     if output_format not in ("pretty", "tsv", "json"):
         typer.echo(f"Error: Invalid format '{output_format}'.", err=True)
@@ -524,13 +524,13 @@ def batch(
        Use -i and -o to filter by sequence name pattern.
        Mode is auto-detected when -i is provided.
 
-       mikado batch alignments/ -i "speciesA" -o "speciesB"
+       mkado batch alignments/ -i "speciesA" -o "speciesB"
 
     2. SEPARATE FILES MODE:
        Pairs of ingroup/outgroup files (e.g., gene1_ingroup.fa, gene1_outgroup.fa).
        Used when -i is NOT provided.
 
-       mikado batch genes/ --ingroup-pattern "*_in.fa" --outgroup-pattern "*_out.fa"
+       mkado batch genes/ --ingroup-pattern "*_in.fa" --outgroup-pattern "*_out.fa"
 
     FILE DETECTION:
        Files are auto-detected by trying *.fa, *.fasta, *.fna in order.
@@ -545,11 +545,11 @@ def batch(
 
     EXAMPLES:
 
-        mikado batch alignments/ -i "dmel" -o "dsim"
-        mikado batch alignments/ -i "dmel" -o "dsim" -a
-        mikado batch alignments/ -i "dmel" -o "dsim" -a --per-gene
-        mikado batch alignments/ -i "dmel" -o "dsim" -w 8
-        mikado batch genes/ --ingroup-pattern "*_in.fa" --outgroup-pattern "*_out.fa"
+        mkado batch alignments/ -i "dmel" -o "dsim"
+        mkado batch alignments/ -i "dmel" -o "dsim" -a
+        mkado batch alignments/ -i "dmel" -o "dsim" -a --per-gene
+        mkado batch alignments/ -i "dmel" -o "dsim" -w 8
+        mkado batch genes/ --ingroup-pattern "*_in.fa" --outgroup-pattern "*_out.fa"
     """
     if output_format not in ("pretty", "tsv", "json"):
         typer.echo(f"Error: Invalid format '{output_format}'.", err=True)
@@ -614,7 +614,7 @@ def batch(
 
         # Aggregated asymptotic mode
         if use_asymptotic and aggregate:
-            from mikado.analysis.asymptotic import PolymorphismData
+            from mkado.analysis.asymptotic import PolymorphismData
 
             worker_results, warnings = run_parallel_batch(
                 tasks, num_workers, "Extracting polymorphism data"
@@ -732,7 +732,7 @@ def batch(
 
         # Aggregated asymptotic mode
         if use_asymptotic and aggregate:
-            from mikado.analysis.asymptotic import PolymorphismData
+            from mkado.analysis.asymptotic import PolymorphismData
 
             worker_results, warnings = run_parallel_batch(
                 tasks, num_workers, "Extracting polymorphism data"
@@ -785,7 +785,7 @@ def info(
     ] = 1,
 ) -> None:
     """Display information about a FASTA file."""
-    from mikado.core.sequences import SequenceSet
+    from mkado.core.sequences import SequenceSet
 
     seqs = SequenceSet.from_fasta(fasta, reading_frame=reading_frame)
 

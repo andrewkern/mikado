@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from mikado.io.fasta import read_fasta, write_fasta
+from mkado.io.fasta import read_fasta, write_fasta
 
 
 def test_read_fasta(tmp_path: Path) -> None:

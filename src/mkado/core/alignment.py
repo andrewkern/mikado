@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from mikado.core.codons import DEFAULT_CODE, GeneticCode
-from mikado.core.sequences import SequenceSet
+from mkado.core.codons import DEFAULT_CODE, GeneticCode
+from mkado.core.sequences import SequenceSet
 
 if TYPE_CHECKING:
     pass

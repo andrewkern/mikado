@@ -2,7 +2,7 @@
 
 import pytest
 
-from mikado.core.codons import DEFAULT_CODE, GeneticCode
+from mkado.core.codons import DEFAULT_CODE, GeneticCode
 
 
 class TestGeneticCode:

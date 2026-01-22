@@ -1,5 +1,5 @@
 [project]
-name = "mikado"
+name = "mkado"
 version = "0.1.0"
 description = "Modern Python implementation of the McDonald-Kreitman test toolkit"
 readme = "README.md"
@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
-mikado = "mikado.cli:app"
+mkado = "mkado.cli:app"
 
 [build-system]
 requires = ["uv_build>=0.9.5,<0.10.0"]
