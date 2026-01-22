@@ -13,15 +13,22 @@ A modern Python implementation of the McDonald-Kreitman test toolkit for detecti
 ## Installation
 
 ```bash
+# Install with uv (recommended)
+uv pip install mkado
+
+# Or install with pip
+pip install mkado
+```
+
+### Development Installation
+
+```bash
 # Clone the repository
 git clone https://github.com/andrewkern/mkado.git
 cd mkado
 
 # Install with uv
 uv sync
-
-# Or install with pip
-pip install .
 ```
 
 ## Quick Start
