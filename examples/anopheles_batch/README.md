@@ -4,10 +4,18 @@ This example demonstrates batch processing of MK tests using aligned coding sequ
 
 ## Data
 
-Three genes with aligned codon sequences:
-- `AGAP000010.fa` - 27 sequences (12 gamb, 12 afun, 3 amin)
-- `AGAP000021.fa` - 27 sequences (12 gamb, 12 afun, 3 amin)
-- `AGAP000041.fa` - 27 sequences (12 gamb, 12 afun, 3 amin)
+Eleven genes with aligned codon sequences (27 sequences each: 12 gamb, 12 afun, 3 amin):
+- `AGAP000010.fa`
+- `AGAP000011.fa`
+- `AGAP000012.fa`
+- `AGAP000014.fa`
+- `AGAP000016.fa`
+- `AGAP000021.fa`
+- `AGAP000022.fa`
+- `AGAP000023.fa`
+- `AGAP000038.fa`
+- `AGAP000041.fa`
+- `AGAP029936.fa`
 
 Species:
 - **gamb**: Anopheles gambiae (ingroup)
@@ -61,16 +69,34 @@ mkado test examples/anopheles_batch/AGAP000010.fa -i gamb -o afun -a
 
 ## Expected Output
 
-Running `mkado batch examples/anopheles_batch/ -i gamb -o afun` should produce output similar to:
+Running `mkado batch examples/anopheles_batch/ -i gamb -o afun` produces TSV output:
 
 ```
-Processing 3 alignment files...
-
-Gene             Dn    Ds    Pn    Ps    p-value    NI       alpha
-AGAP000010       XX    XX    XX    XX    X.XXX      X.XXXX   X.XXXX
-AGAP000021       XX    XX    XX    XX    X.XXX      X.XXXX   X.XXXX
-AGAP000041       XX    XX    XX    XX    X.XXX      X.XXXX   X.XXXX
+gene        Dn   Ds   Pn  Ps  p_value    p_value_adjusted  NI        alpha
+AGAP000010  79   176  3   6   1          1                 1.113924  -0.113924
+AGAP000011  14   140  2   7   0.21639    0.595072          2.857143  -1.857143
+AGAP000012  40   159  5   9   0.179949   0.595072          2.208333  -1.208333
+AGAP000014  59   129  5   14  0.796994   1                 0.780872  0.219128
+AGAP000016  158  216  8   4   0.136763   0.595072          2.734177  -1.734177
+AGAP000021  16   45   0   1   1          1                 0.000000  1.000000
+AGAP000022  73   218  3   17  0.423897   0.932574          0.526994  0.473006
+AGAP000023  24   128  2   13  1          1                 0.820513  0.179487
+AGAP000038  11   145  0   14  0.602424   0.946666          0.000000  1.000000
+AGAP000041  60   161  2   10  0.523748   0.946666          0.536667  0.463333
+AGAP029936  229  221  40  20  0.0270896  0.297986          1.930131  -0.930131
 ```
+
+### Visualization Options
+
+```bash
+# Volcano plot (p-value vs alpha)
+mkado batch examples/anopheles_batch/ -i gamb -o afun --volcano volcano.png
+
+# Asymptotic alpha plot (aggregate)
+mkado batch examples/anopheles_batch/ -i gamb -o afun -a --plot-asymptotic asymptotic.png
+```
+
+See the [batch workflow documentation](../../docs/batch-workflow.rst) for example plots.
 
 ## Notes
 

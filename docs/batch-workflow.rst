@@ -92,6 +92,13 @@ The plot shows:
 
 This visualization helps assess the fit quality and understand how slightly deleterious mutations affect α estimates at different frequencies.
 
+.. figure:: _static/asymptotic.png
+   :width: 500px
+   :align: center
+   :alt: Asymptotic alpha plot
+
+   Example asymptotic α(x) plot from the Anopheles batch example data.
+
 Per-Gene Analysis
 ^^^^^^^^^^^^^^^^^
 
@@ -212,6 +219,13 @@ Example:
 
    # Generate volcano plot with example data
    mkado batch examples/anopheles_batch/ -i gamb -o afun --volcano volcano.png
+
+.. figure:: _static/volcano.png
+   :width: 500px
+   :align: center
+   :alt: Volcano plot
+
+   Example volcano plot from the Anopheles batch example data.
 
 File Filtering
 --------------
