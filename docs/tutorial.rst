@@ -142,20 +142,143 @@ The output includes:
 - **Model type**: Whether exponential or linear model was selected
 - **Per-bin alpha values**: Alpha estimates at each frequency class
 
+Allele Polarization
+-------------------
+
+Polarization is the process of determining which allele is **ancestral** (the original state) versus **derived** (a new mutation). This distinction is important for several reasons:
+
+- Calculating derived allele frequency for the asymptotic MK test
+- Filtering polymorphisms by frequency (``--min-freq``, ``--no-singletons``)
+- Assigning mutations to specific lineages (polarized MK test)
+
+MKado uses outgroup sequences to polarize alleles. The method differs slightly depending on the test type.
+
+Polarization in Standard MK and Asymptotic Tests
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+In the standard and asymptotic MK tests, MKado uses a **single outgroup** to identify ancestral alleles:
+
+1. **For each polymorphic codon position** in the ingroup, MKado identifies which codons are present and their frequencies
+2. **Compare with the outgroup** — find codons that are shared between the ingroup and outgroup
+3. **The shared allele is ancestral** — if multiple ingroup alleles match outgroup alleles, the most frequent one is chosen as ancestral
+4. **Calculate derived frequency** — derived_freq = 1.0 − frequency(ancestral)
+
+**Example:**
+
+Consider a codon position where the ingroup has:
+
+- Codon AAA at 75% frequency
+- Codon AAG at 25% frequency
+
+If the outgroup has codon AAA, then:
+
+- AAA is the **ancestral** allele (shared with outgroup)
+- AAG is the **derived** allele (new mutation in ingroup)
+- Derived allele frequency = 0.25
+
+**Unpolarizable sites:**
+
+Some polymorphic sites cannot be polarized:
+
+- **No shared allele**: If no ingroup codon matches any outgroup codon, we cannot determine which is ancestral. This can happen when the outgroup is distantly related or multiple mutations have occurred.
+- **Ambiguous data**: Codons containing ambiguous bases (N) or gaps (-) are excluded from comparison.
+
+Unpolarizable sites are excluded from frequency-based analyses (asymptotic test, ``--min-freq`` filtering) but are still counted in the standard MK test's Pn/Ps totals.
+
 Polarized MK Test
 -----------------
 
-The polarized MK test uses a second outgroup to determine the direction of mutations:
+The standard MK test counts fixed differences between ingroup and outgroup but cannot determine **which lineage** the mutation occurred on. Did the ingroup change from the ancestral state, or did the outgroup?
+
+The polarized MK test uses a **second outgroup** (typically a more distantly related species) to answer this question:
 
 .. code-block:: bash
 
    # Use amin as second outgroup for polarization
    mkado test examples/anopheles_batch/AGAP000010.fa -i gamb -o afun --polarize-match amin
 
-This allows you to distinguish:
+Polarizing Fixed Differences
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- Mutations that occurred on the ingroup lineage
-- Mutations that occurred on the outgroup lineage
+For each fixed difference between ingroup and outgroup1, MKado applies a **majority rule** using outgroup2:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 30 40
+
+   * - Scenario
+     - Ancestral State
+     - Interpretation
+   * - outgroup1 = outgroup2
+     - The shared outgroup codon
+     - Mutation on **ingroup** lineage
+   * - ingroup = outgroup2
+     - The ingroup codon
+     - Mutation on **outgroup1** lineage
+   * - All three differ
+     - Cannot determine
+     - **Unpolarizable** — excluded from lineage-specific counts
+
+**Example:**
+
+Consider a codon position with:
+
+- Ingroup: GCT (Ala)
+- Outgroup1: GGT (Gly)
+- Outgroup2: GGT (Gly)
+
+Both outgroups share GGT, so GGT is likely ancestral. The GCT→GGT change occurred on the **ingroup lineage**.
+
+Now consider:
+
+- Ingroup: GCT (Ala)
+- Outgroup1: GGT (Gly)
+- Outgroup2: GCT (Ala)
+
+The ingroup matches the more distant outgroup2, so GCT is likely ancestral. The GCT→GGT change occurred on the **outgroup1 lineage**.
+
+Polarizing Polymorphisms
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Polymorphisms (within the ingroup) are polarized using **outgroup2** (not outgroup1):
+
+1. Find codons shared between ingroup and outgroup2
+2. The shared codon is ancestral
+3. Derived frequency = 1.0 − frequency(ancestral)
+
+Using outgroup2 for polymorphism polarization provides a more distant reference point, which can be more reliable for determining ancestral states.
+
+Interpreting Polarized Results
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The polarized MK test reports separate statistics for each lineage:
+
+- **Ingroup lineage**: Dn, Ds, Pn, Ps, alpha — mutations that occurred on the ingroup branch
+- **Outgroup lineage**: Dn, Ds — mutations that occurred on the outgroup1 branch
+- **Unpolarized**: Dn, Ds — fixed differences that could not be assigned to either lineage
+
+Only the **ingroup lineage** statistics are used to calculate alpha, since polymorphisms are only observable in the ingroup.
+
+Why Use Polarization?
+^^^^^^^^^^^^^^^^^^^^^
+
+Lineage-specific analysis is useful when:
+
+- You want to test for selection specifically on the ingroup lineage
+- The outgroup1 may have experienced different selective pressures
+- You need to distinguish ancestral polymorphism from derived changes
+
+**Phylogenetic requirements:**
+
+::
+
+   outgroup2 ─────────┐
+                      ├─── root
+   outgroup1 ─────┐   │
+                  ├───┘
+   ingroup ───────┘
+
+Outgroup2 should be more distantly related than outgroup1. The more distant outgroup2 helps establish the ancestral state at the root.
 
 Frequency Filtering Options
 ---------------------------
