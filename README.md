@@ -252,9 +252,11 @@ See the [documentation](https://mkado.readthedocs.io/) for detailed tutorials an
 
 ## References
 
-- McDonald, J. H., & Kreitman, M. (1991). Adaptive protein evolution at the Adh locus in Drosophila. Nature, 351(6328), 652-654.
-- Messer, P. W., & Petrov, D. A. (2013). Frequent adaptation and the McDonald–Kreitman test. PNAS, 110(21), 8615-8620.
-- Stoletzki, N., & Eyre-Walker, A. (2011). Estimation of the Neutrality Index. Molecular Biology and Evolution, 28(1), 63-70.
+- McDonald, J. H., & Kreitman, M. (1991). Adaptive protein evolution at the Adh locus in Drosophila. Nature, 351(6328), 652-654. https://doi.org/10.1038/351652a0
+- Messer, P. W., & Petrov, D. A. (2013). Frequent adaptation and the McDonald–Kreitman test. PNAS, 110(21), 8615-8620. https://doi.org/10.1073/pnas.1220835110
+- Rand, D. M., & Kann, L. M. (1996). Excess amino acid polymorphism in mitochondrial DNA: contrasts among genes from Drosophila, mice, and humans. Molecular Biology and Evolution, 13(6), 735-748. https://doi.org/10.1093/oxfordjournals.molbev.a025634
+- Smith, N. G. C., & Eyre-Walker, A. (2002). Adaptive protein evolution in Drosophila. Nature, 415(6875), 1022-1024. https://doi.org/10.1038/4151022a
+- Stoletzki, N., & Eyre-Walker, A. (2011). Estimation of the Neutrality Index. Molecular Biology and Evolution, 28(1), 63-70. https://doi.org/10.1093/molbev/msq249
 
 ## License
 

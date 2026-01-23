@@ -1,14 +1,14 @@
 Tarone-Greenland Alpha (α_TG)
 =============================
 
-MKado implements the weighted α_TG estimator from Stoletzki & Eyre-Walker (2011), which provides an unbiased estimate of the proportion of adaptive substitutions when analyzing multiple genes.
+MKado implements the weighted α_TG estimator from `Stoletzki & Eyre-Walker (2011)`_, which provides an unbiased estimate of the proportion of adaptive substitutions when analyzing multiple genes.
 
 Background
 ----------
 
 When analyzing many genes, a common approach is to calculate alpha (α = 1 - NI) for each gene and take the mean. However, this simple average is **heavily biased** by genes with small sample sizes, where alpha can take extreme values (e.g., -30 or +5) due to sampling noise.
 
-Stoletzki & Eyre-Walker (2011) showed that averaging across genes produces biased estimates even with large sample sizes, and introduced a weighted estimator that corrects this problem.
+`Stoletzki & Eyre-Walker (2011)`_ showed that averaging across genes produces biased estimates even with large sample sizes, and introduced a weighted estimator that corrects this problem.
 
 The NI_TG Formula
 -----------------
@@ -128,4 +128,6 @@ Use asymptotic α (``-a``) when:
 Reference
 ---------
 
-Stoletzki N, Eyre-Walker A (2011) Estimation of the Neutrality Index. *Molecular Biology and Evolution* 28(1):63-70. doi:10.1093/molbev/msq249
+.. _Stoletzki & Eyre-Walker (2011): https://doi.org/10.1093/molbev/msq249
+
+Stoletzki N, Eyre-Walker A (2011) Estimation of the Neutrality Index. *Molecular Biology and Evolution* 28(1):63-70. https://doi.org/10.1093/molbev/msq249

@@ -77,7 +77,7 @@ This outputs a single asymptotic alpha estimate for the entire gene set.
 Asymptotic Alpha Plot
 ^^^^^^^^^^^^^^^^^^^^^
 
-When running aggregated asymptotic analysis, you can generate a plot showing how α(x) varies with derived allele frequency, similar to Messer & Petrov (2013):
+When running aggregated asymptotic analysis, you can generate a plot showing how α(x) varies with derived allele frequency, similar to `Messer & Petrov (2013)`_:
 
 .. code-block:: bash
 
@@ -296,3 +296,8 @@ Here's a complete workflow using the example data:
 
    # 6. Generate asymptotic alpha plot
    mkado batch examples/anopheles_batch/ -i afun -o gamb -a -b 20 --plot-asymptotic asymptotic.png
+
+References
+----------
+
+.. _Messer & Petrov (2013): https://doi.org/10.1073/pnas.1220835110

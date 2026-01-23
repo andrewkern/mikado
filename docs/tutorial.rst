@@ -12,7 +12,7 @@ Prerequisites
 The McDonald-Kreitman Test
 --------------------------
 
-The MK test compares the ratio of non-synonymous to synonymous changes within species (polymorphism) versus between species (divergence). Under neutral evolution, these ratios should be equal.
+The MK test (`McDonald & Kreitman 1991`_) compares the ratio of non-synonymous to synonymous changes within species (polymorphism) versus between species (divergence). Under neutral evolution, these ratios should be equal.
 
 The test produces a 2x2 contingency table:
 
@@ -60,12 +60,16 @@ Interpreting Results
 Neutrality Index (NI)
 ^^^^^^^^^^^^^^^^^^^^^
 
+The Neutrality Index (`Rand & Kann 1996`_) measures the direction and degree of departure from neutral evolution:
+
 - **NI = 1**: Consistent with neutral evolution
 - **NI > 1**: Excess polymorphism (segregating weakly deleterious variants)
 - **NI < 1**: Excess divergence (positive selection)
 
 Alpha
 ^^^^^
+
+Alpha, the proportion of adaptive substitutions (`Smith & Eyre-Walker 2002`_):
 
 - **Alpha = 0**: No adaptive substitutions
 - **Alpha > 0**: Proportion of fixed differences due to positive selection
@@ -74,7 +78,7 @@ Alpha
 Asymptotic MK Test
 ------------------
 
-The standard MK test can be biased by slightly deleterious mutations. The asymptotic MK test (Messer & Petrov 2013) addresses this by:
+The standard MK test can be biased by slightly deleterious mutations. The asymptotic MK test (`Messer & Petrov 2013`_) addresses this by:
 
 1. Binning polymorphisms by frequency
 2. Estimating alpha at each frequency bin
@@ -132,3 +136,11 @@ Next Steps
 - Learn about :doc:`batch-workflow` for processing multiple genes
 - Review :doc:`file-formats` for input requirements
 - Explore the :doc:`api` for programmatic access
+
+References
+----------
+
+.. _McDonald & Kreitman 1991: https://doi.org/10.1038/351652a0
+.. _Messer & Petrov 2013: https://doi.org/10.1073/pnas.1220835110
+.. _Rand & Kann 1996: https://doi.org/10.1093/oxfordjournals.molbev.a025634
+.. _Smith & Eyre-Walker 2002: https://doi.org/10.1038/4151022a

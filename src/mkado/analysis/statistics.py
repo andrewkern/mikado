@@ -62,6 +62,9 @@ def alpha(dn: int, ds: int, pn: int, ps: int) -> float | None:
 
     α = 1 - (Ds × Pn) / (Dn × Ps)
 
+    This per-gene formulation is from Smith and Eyre-Walker (2002):
+    https://pubmed.ncbi.nlm.nih.gov/11875568/
+
     Under neutrality, α = 0.
     α > 0 suggests positive selection.
     α < 0 suggests segregating weakly deleterious polymorphisms.
