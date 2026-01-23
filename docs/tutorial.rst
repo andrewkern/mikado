@@ -240,13 +240,30 @@ The ingroup matches the more distant outgroup2, so GCT is likely ancestral. The 
 Polarizing Polymorphisms
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-Polymorphisms (within the ingroup) are polarized using **outgroup2** (not outgroup1):
+Polymorphisms in the ingroup are also polarized to determine if they arose on the ingroup lineage. The logic mirrors fixed difference polarization:
 
-1. Find codons shared between ingroup and outgroup2
-2. The shared codon is ancestral
-3. Derived frequency = 1.0 − frequency(ancestral)
+1. **Check for ancestral polymorphism**: If outgroup2 contains ALL the ingroup alleles, the polymorphism existed at the common ancestor and cannot be attributed to the ingroup lineage → excluded
+2. **Determine ancestral state**: If outgroup1 and outgroup2 share an allele, that allele is ancestral
+3. **Verify derived allele**: If the ingroup has alleles not present in outgroup2, those are derived on the ingroup lineage → counted as ingroup polymorphism
+4. **Cannot polarize**: If no clear ancestral state can be determined → excluded
 
-Using outgroup2 for polymorphism polarization provides a more distant reference point, which can be more reliable for determining ancestral states.
+**Example:**
+
+Consider a polymorphic site where:
+
+- Ingroup has: AAA (60%), AAG (40%)
+- Outgroup1 has: AAA
+- Outgroup2 has: AAA
+
+Outgroup1 and outgroup2 both have AAA, so AAA is ancestral. The AAG allele (40%) is derived on the ingroup lineage. This is an **ingroup polymorphism**.
+
+Now consider:
+
+- Ingroup has: AAA (60%), AAG (40%)
+- Outgroup1 has: AAA
+- Outgroup2 has: AAA, AAG
+
+Outgroup2 has BOTH ingroup alleles. This polymorphism existed at the common ancestor — it's not derived on the ingroup lineage. This polymorphism is **excluded** from the ingroup count.
 
 Interpreting Polarized Results
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -255,9 +272,14 @@ The polarized MK test reports separate statistics for each lineage:
 
 - **Ingroup lineage**: Dn, Ds, Pn, Ps, alpha — mutations that occurred on the ingroup branch
 - **Outgroup lineage**: Dn, Ds — mutations that occurred on the outgroup1 branch
-- **Unpolarized**: Dn, Ds — fixed differences that could not be assigned to either lineage
+- **Unpolarized**: Dn, Ds, Pn, Ps — changes that could not be assigned to a lineage
 
-Only the **ingroup lineage** statistics are used to calculate alpha, since polymorphisms are only observable in the ingroup.
+Unpolarized polymorphisms include:
+
+- Ancestral polymorphisms (present in outgroup2)
+- Polymorphisms where the ancestral state cannot be determined
+
+Only the **ingroup lineage** statistics are used to calculate alpha. This provides a cleaner estimate of selection on the ingroup lineage by excluding ancestral variation.
 
 Why Use Polarization?
 ^^^^^^^^^^^^^^^^^^^^^

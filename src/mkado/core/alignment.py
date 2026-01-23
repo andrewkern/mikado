@@ -344,3 +344,56 @@ class PolarizedAlignedPair(AlignedPair):
         syn = sum(1 for change_type, _ in path if change_type == "S")
 
         return (lineage, (nonsyn, syn))
+
+    def polarize_ingroup_polymorphism(
+        self, codon_index: int
+    ) -> tuple[int, int] | None:
+        """Polarize and classify an ingroup polymorphism.
+
+        Uses outgroup2 to determine if the polymorphism arose on the ingroup
+        lineage. Following the convention from mkTest.rb:
+
+        1. If outgroup2 has ALL ingroup alleles → ancestral polymorphism,
+           cannot attribute to ingroup lineage
+        2. If outgroup2 shares allele with outgroup1 → the shared allele is
+           ancestral, ingroup has derived allele(s) → ingroup polymorphism
+        3. If outgroup2 shares some (but not all) alleles with ingroup →
+           shared allele is ancestral → ingroup polymorphism
+        4. Otherwise → cannot polarize
+
+        Args:
+            codon_index: Zero-based codon index
+
+        Returns:
+            Tuple of (non_synonymous_count, synonymous_count) if the
+            polymorphism is derived in ingroup, None if cannot polarize
+        """
+        if self.outgroup2 is None:
+            return None
+
+        in_codons = self.ingroup.codon_set_clean(codon_index)
+        out1_codons = self.outgroup.codon_set_clean(codon_index)
+        out2_codons = self.outgroup2.codon_set_clean(codon_index)
+
+        if not in_codons or len(in_codons) < 2:
+            return None  # Not polymorphic in ingroup
+
+        if not out2_codons:
+            return None  # No outgroup2 data - cannot polarize
+
+        # Check if outgroup2 has all ingroup alleles (ancestral polymorphism)
+        if in_codons <= out2_codons:
+            return None  # Ancestral polymorphism - don't count for ingroup lineage
+
+        # Check if we can determine ancestral state
+        # Preferred: outgroup1 and outgroup2 agree (both have same allele)
+        if out1_codons and (out1_codons & out2_codons):
+            # outgroup1 and outgroup2 share an allele - that's the ancestral state
+            return self.classify_polymorphism(codon_index)
+
+        # Alternative: outgroup2 shares some (but not all) alleles with ingroup
+        if in_codons & out2_codons:
+            # The shared allele is ancestral, others are derived in ingroup
+            return self.classify_polymorphism(codon_index)
+
+        return None  # Cannot polarize

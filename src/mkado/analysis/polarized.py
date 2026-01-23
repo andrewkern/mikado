@@ -36,6 +36,8 @@ class PolarizedMKResult:
     # Unpolarized counts (could not determine lineage)
     dn_unpolarized: int
     ds_unpolarized: int
+    pn_unpolarized: int
+    ps_unpolarized: int
 
     # Statistics for ingroup lineage
     p_value_ingroup: float
@@ -55,7 +57,8 @@ class PolarizedMKResult:
             f"  Outgroup Lineage:\n"
             f"    Divergence:    Dn={self.dn_outgroup}, Ds={self.ds_outgroup}\n"
             f"  Unpolarized:\n"
-            f"    Divergence:    Dn={self.dn_unpolarized}, Ds={self.ds_unpolarized}"
+            f"    Divergence:    Dn={self.dn_unpolarized}, Ds={self.ds_unpolarized}\n"
+            f"    Polymorphism:  Pn={self.pn_unpolarized}, Ps={self.ps_unpolarized}"
         )
 
     def to_dict(self) -> dict:
@@ -77,6 +80,8 @@ class PolarizedMKResult:
             "unpolarized": {
                 "dn": self.dn_unpolarized,
                 "ds": self.ds_unpolarized,
+                "pn": self.pn_unpolarized,
+                "ps": self.ps_unpolarized,
             },
         }
 
@@ -159,50 +164,70 @@ def polarized_mk_test(
                     dn_out += nonsyn
                     ds_out += syn
 
-    # Count polymorphisms
+    # Count polymorphisms with polarization
     pn_in = 0
     ps_in = 0
+    pn_unpol = 0
+    ps_unpol = 0
 
     if pool_polymorphisms:
         # Pooled mode: count polymorphisms from both populations (libsequence convention)
+        # Note: polarization is not applied in pooled mode as it's unclear which
+        # lineage to attribute shared polymorphisms to
         poly_sites = pair.polymorphic_sites_pooled()
-        classify_func = pair.classify_polymorphism_pooled
+        for codon_idx in poly_sites:
+            result = pair.classify_polymorphism_pooled(codon_idx)
+            if result is not None:
+                nonsyn, syn = result
+                pn_in += nonsyn
+                ps_in += syn
     else:
         # Standard mode: count only ingroup polymorphisms (DnaSP convention)
+        # Apply polarization to determine if polymorphism arose on ingroup lineage
         poly_sites = pair.polymorphic_sites_ingroup()
-        classify_func = pair.classify_polymorphism
 
-    for codon_idx in poly_sites:
-        # Apply frequency filter if specified
-        if min_frequency > 0:
-            # Get frequency spectrum from ingroup
-            freqs = ingroup.site_frequency_spectrum(codon_idx)
-            if not freqs:
+        for codon_idx in poly_sites:
+            # First, try to polarize the polymorphism
+            result = pair.polarize_ingroup_polymorphism(codon_idx)
+
+            if result is None:
+                # Could not polarize - count as unpolarized
+                unpol_result = pair.classify_polymorphism(codon_idx)
+                if unpol_result is not None:
+                    nonsyn, syn = unpol_result
+                    pn_unpol += nonsyn
+                    ps_unpol += syn
                 continue
 
-            # Get outgroup2 codons to determine ancestral state
-            out_codons = outgroup2.codon_set_clean(codon_idx)
-            if not out_codons:
-                continue
+            # Polymorphism is polarized to ingroup lineage
+            # Apply frequency filter if specified
+            if min_frequency > 0:
+                # Get frequency spectrum from ingroup
+                freqs = ingroup.site_frequency_spectrum(codon_idx)
+                if not freqs:
+                    continue
 
-            # Find ancestral codon (shared between ingroup and outgroup2)
-            ingroup_codons = set(freqs.keys())
-            shared_codons = ingroup_codons & out_codons
-            if not shared_codons:
-                continue
+                # Get outgroup2 codons to determine ancestral state
+                out_codons = outgroup2.codon_set_clean(codon_idx)
+                if not out_codons:
+                    continue
 
-            # Use the most frequent shared codon as ancestral
-            ancestral = max(shared_codons, key=lambda c: freqs.get(c, 0))
+                # Find ancestral codon (shared between ingroup and outgroup2)
+                ingroup_codons = set(freqs.keys())
+                shared_codons = ingroup_codons & out_codons
+                if not shared_codons:
+                    continue
 
-            # Calculate derived allele frequency
-            derived_freq = 1.0 - freqs[ancestral]
+                # Use the most frequent shared codon as ancestral
+                ancestral = max(shared_codons, key=lambda c: freqs.get(c, 0))
 
-            # Skip if below minimum frequency threshold
-            if derived_freq < min_frequency:
-                continue
+                # Calculate derived allele frequency
+                derived_freq = 1.0 - freqs[ancestral]
 
-        result = classify_func(codon_idx)
-        if result is not None:
+                # Skip if below minimum frequency threshold
+                if derived_freq < min_frequency:
+                    continue
+
             nonsyn, syn = result
             pn_in += nonsyn
             ps_in += syn
@@ -221,6 +246,8 @@ def polarized_mk_test(
         ds_outgroup=ds_out,
         dn_unpolarized=dn_unpol,
         ds_unpolarized=ds_unpol,
+        pn_unpolarized=pn_unpol,
+        ps_unpolarized=ps_unpol,
         p_value_ingroup=p_val,
         ni_ingroup=ni,
         alpha_ingroup=a,
