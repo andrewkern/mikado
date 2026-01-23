@@ -958,6 +958,53 @@ def _integrate_over_dfe_adaptive_fixation(
     return integral
 
 
+@numba.njit(cache=True)
+def _integrate_over_dfe_non_adaptive_fixation(
+    dfe_values: np.ndarray,
+    s_grid: np.ndarray,
+    threshold: float = 5.0,
+    s_widths: np.ndarray | None = None,
+) -> float:
+    """Integrate fixation probability for non-adaptive mutations only.
+
+    Only counts fixations where S <= threshold (weakly selected, not
+    strongly beneficial). Uses rectangle/midpoint rule.
+
+    This is used in the FWW-style alpha calculation:
+    omega_na = integral(DFE(S) × P_fix(S)) for S <= threshold
+
+    Args:
+        dfe_values: DFE density evaluated at each S in s_grid
+        s_grid: Grid of S values
+        threshold: Maximum S to count as non-adaptive (default 5.0)
+        s_widths: Pre-computed widths for each S point (optional)
+
+    Returns:
+        Expected non-adaptive fixation rate (omega_na)
+    """
+    n_s = len(s_grid)
+
+    integral = 0.0
+    for i in range(n_s):
+        # Only integrate where S <= threshold
+        if s_grid[i] > threshold:
+            continue
+
+        # Compute width if not provided
+        if s_widths is not None:
+            width = s_widths[i]
+        elif i == 0:
+            width = s_grid[i + 1] - s_grid[i]
+        elif i == n_s - 1:
+            width = s_grid[i] - s_grid[i - 1]
+        else:
+            width = (s_grid[i + 1] - s_grid[i - 1]) / 2.0
+
+        integral += dfe_values[i] * fixation_probability(s_grid[i]) * width
+
+    return integral
+
+
 # =============================================================================
 # Likelihood computation
 # =============================================================================

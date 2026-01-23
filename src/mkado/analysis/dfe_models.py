@@ -30,6 +30,7 @@ from mkado.analysis.dfe_numba import (
     _integrate_over_dfe_sfs,
     _integrate_over_dfe_fixation,
     _integrate_over_dfe_adaptive_fixation,
+    _integrate_over_dfe_non_adaptive_fixation,
 )
 
 if TYPE_CHECKING:
@@ -208,6 +209,17 @@ class DFEModel(ABC):
         """
         return np.array([self.density(s, params) for s in s_grid])
 
+    def _get_starting_points(self) -> list[np.ndarray]:
+        """Get model-specific starting points for optimization.
+
+        Override in subclasses to provide good starting points.
+
+        Returns:
+            List of starting point arrays
+        """
+        # Default: use middle of bounds
+        return [np.array([(b[0] + b[1]) / 2 for b in self.param_bounds])]
+
     def expected_sfs_selected(
         self,
         params: np.ndarray,
@@ -268,6 +280,30 @@ class DFEModel(ABC):
         """
         dfe_values = self.evaluate_dfe_on_grid(params, precalc.s_grid)
         return _integrate_over_dfe_adaptive_fixation(
+            dfe_values, precalc.s_grid, threshold, precalc.s_widths
+        )
+
+    def expected_non_adaptive_divergence(
+        self,
+        params: np.ndarray,
+        precalc: PrecomputedData,
+        threshold: float = 5.0,
+    ) -> float:
+        """Compute expected non-adaptive divergence rate (S <= threshold).
+
+        This is used in the FWW-style alpha calculation:
+        alpha = 1 - omega_na / omega_obs
+
+        Args:
+            params: DFE parameters
+            precalc: Pre-computed integration data
+            threshold: Maximum S to count as non-adaptive
+
+        Returns:
+            Expected non-adaptive divergence rate (omega_na)
+        """
+        dfe_values = self.evaluate_dfe_on_grid(params, precalc.s_grid)
+        return _integrate_over_dfe_non_adaptive_fixation(
             dfe_values, precalc.s_grid, threshold, precalc.s_widths
         )
 
@@ -420,32 +456,29 @@ class DFEModel(ABC):
         # Multiple starting points with strategic choices
         rng = np.random.default_rng(42)
 
-        # Predefined starting points that work well empirically
-        # These cover the typical parameter space for DFE models
-        predefined_starts = [
-            [0.3, 5000],     # Low shape, moderate mean
-            [0.3, 20000],    # Low shape, high mean
-            [0.5, 10000],    # Medium shape, moderate mean
-            [1.0, 1000],     # Higher shape, low mean
-        ]
+        # Model-specific starting points based on empirical performance
+        # These are tuned to find the global optimum more reliably
+        model_starts = self._get_starting_points()
 
-        for start_idx in range(max(n_starts, len(predefined_starts) + 2)):
-            # Generate starting point within bounds
-            if start_idx < len(predefined_starts) and self.n_params == 2:
-                # Use predefined starts for 2-param models
-                x0 = np.array(predefined_starts[start_idx])
-            elif start_idx == len(predefined_starts):
-                # Try middle of bounds
-                x0 = np.array([(b[0] + b[1]) / 2 for b in bounds])
-            else:
-                # Random starting point with log-uniform for mean parameters
-                x0 = np.zeros(self.n_params)
-                for i, b in enumerate(bounds):
-                    if b[1] > 1e4:  # Large upper bound suggests log-scale
-                        x0[i] = np.exp(rng.uniform(np.log(max(b[0], 1)), np.log(b[1])))
-                    else:
-                        x0[i] = rng.uniform(b[0], b[1])
-                x0 = np.array(x0)
+        all_starts = []
+
+        # Add model-specific starts
+        all_starts.extend(model_starts)
+
+        # Add middle of bounds
+        all_starts.append(np.array([(b[0] + b[1]) / 2 for b in bounds]))
+
+        # Add random starts
+        for _ in range(max(0, n_starts - len(all_starts))):
+            x0 = np.zeros(self.n_params)
+            for i, b in enumerate(bounds):
+                if b[1] > 1e4:  # Large upper bound suggests log-scale
+                    x0[i] = np.exp(rng.uniform(np.log(max(b[0], 1)), np.log(b[1])))
+                else:
+                    x0[i] = rng.uniform(b[0], b[1])
+            all_starts.append(x0)
+
+        for x0 in all_starts:
 
             try:
                 # Try L-BFGS-B first
@@ -497,9 +530,13 @@ class DFEModel(ABC):
         log_likelihood = -best_result.fun
         aic = 2 * n_params - 2 * log_likelihood
 
-        # Compute alpha using FWW method: alpha = 1 - omega_na/omega_obs
+        # Compute alpha following GRAPES methodology (FWW-style with DFE):
+        # omega_na = integral(DFE(S) × P_fix(S)) for S ≤ threshold
         # omega_obs = (Dn/Ldn) / (Ds/Lds)
-        # omega_na = expected dN/dS from DFE (relative to neutral fixation rate)
+        # alpha = 1 - omega_na / omega_obs
+        #
+        # This uses the DFE to predict the non-adaptive substitution rate,
+        # then computes what fraction of observed divergence is unexplained (adaptive).
 
         # Get divergence site counts
         Ldn = data.n_sites_div_selected
@@ -517,10 +554,13 @@ class DFEModel(ABC):
         else:
             omega_obs = 0.0
 
-        # Expected non-adaptive dN/dS from DFE (fixation rate ratio)
-        omega_na = self.expected_divergence(fitted_params, precalc)
+        # Compute omega_na = expected non-adaptive fixation rate (S <= threshold)
+        # This is the expected dN/dS if only weakly selected mutations contribute
+        omega_na = self.expected_non_adaptive_divergence(
+            fitted_params, precalc, threshold=adaptive_threshold
+        )
 
-        # FWW alpha: proportion of substitutions not explained by DFE
+        # Alpha = fraction of divergence not explained by non-adaptive DFE
         if omega_obs > 0 and omega_na < omega_obs:
             alpha = 1.0 - (omega_na / omega_obs)
             omega_a = omega_obs - omega_na
@@ -568,13 +608,13 @@ class DFEModel(ABC):
             data: Input data
             precalc: Pre-computed data
             best_nll: Best negative log-likelihood
-            adaptive_threshold: Threshold for adaptive mutations (unused in FWW)
+            adaptive_threshold: Threshold for adaptive mutations
             delta_ll: Log-likelihood decrease for CI (2.0 for ~95%)
 
         Returns:
             Tuple of (alpha_down, alpha_up)
         """
-        # Get divergence site counts for omega_obs calculation
+        # Compute omega_obs for alpha calculation
         Ldn = data.n_sites_div_selected
         if Ldn is None:
             Ldn = data.n_sites_selected if data.n_sites_selected else 1.0
@@ -582,7 +622,6 @@ class DFEModel(ABC):
         if Lds is None:
             Lds = data.n_sites_neutral if data.n_sites_neutral else 1.0
 
-        # Observed omega
         if data.divergence_neutral > 0 and Lds > 0 and Ldn > 0:
             dn_rate = data.divergence_selected / Ldn
             ds_rate = data.divergence_neutral / Lds
@@ -591,8 +630,10 @@ class DFEModel(ABC):
             omega_obs = 0.0
 
         def compute_alpha(params: np.ndarray) -> float:
-            """Compute FWW alpha for given parameters."""
-            omega_na = self.expected_divergence(params, precalc)
+            """Compute alpha using FWW-style calculation with DFE."""
+            omega_na = self.expected_non_adaptive_divergence(
+                params, precalc, threshold=adaptive_threshold
+            )
             if omega_obs > 0 and omega_na < omega_obs:
                 return 1.0 - (omega_na / omega_obs)
             return 0.0
@@ -663,6 +704,15 @@ class GammaZeroModel(DFEModel):
         shape, mean = params
         return gamma_density_grid(s_grid, shape, mean)
 
+    def _get_starting_points(self) -> list[np.ndarray]:
+        """Starting points tuned for GammaZero model."""
+        return [
+            np.array([0.3, 5000.0]),     # Low shape, moderate mean
+            np.array([0.3, 20000.0]),    # Low shape, high mean (GRAPES typical)
+            np.array([0.5, 10000.0]),    # Medium shape, moderate mean
+            np.array([1.0, 1000.0]),     # Higher shape, low mean
+        ]
+
 
 class GammaExpoModel(DFEModel):
     """Gamma (deleterious) + Exponential (beneficial) DFE.
@@ -705,6 +755,23 @@ class GammaExpoModel(DFEModel):
         """Vectorized DFE evaluation."""
         shape_del, mean_del, prop_ben, mean_ben = params
         return gamma_expo_density_grid(s_grid, shape_del, mean_del, prop_ben, mean_ben)
+
+    def _get_starting_points(self) -> list[np.ndarray]:
+        """Starting points tuned for GammaExpo model.
+
+        Based on GRAPES typical values. The key is to try starting points
+        with non-trivial prop_ben to escape local minima with prop_ben≈0.
+        """
+        return [
+            # [shape_del, mean_del, prop_ben, mean_ben]
+            # GRAPES default starting point (empirically best)
+            np.array([0.378, 10177.0, 0.0084, 10000.0]),
+            np.array([0.38, 10000.0, 0.008, 5000.0]),
+            np.array([0.3, 10000.0, 0.01, 1000.0]),
+            np.array([0.4, 15000.0, 0.005, 2000.0]),
+            np.array([0.35, 5000.0, 0.02, 500.0]),
+            np.array([0.3, 20000.0, 0.001, 100.0]),
+        ]
 
 
 class GammaGammaModel(DFEModel):
@@ -753,6 +820,16 @@ class GammaGammaModel(DFEModel):
             s_grid, shape_del, mean_del, prop_ben, shape_ben, mean_ben
         )
 
+    def _get_starting_points(self) -> list[np.ndarray]:
+        """Starting points tuned for GammaGamma model."""
+        return [
+            # [shape_del, mean_del, prop_ben, shape_ben, mean_ben]
+            np.array([0.3, 10000.0, 0.01, 0.5, 500.0]),
+            np.array([0.4, 20000.0, 0.005, 1.0, 1000.0]),
+            np.array([0.3, 5000.0, 0.02, 0.3, 100.0]),
+            np.array([0.5, 15000.0, 0.008, 0.8, 2000.0]),
+        ]
+
 
 class DisplacedGammaModel(DFEModel):
     """Displaced Gamma DFE.
@@ -793,6 +870,16 @@ class DisplacedGammaModel(DFEModel):
         """Vectorized DFE evaluation."""
         shape, mean, displacement = params
         return displaced_gamma_density_grid(s_grid, shape, mean, displacement)
+
+    def _get_starting_points(self) -> list[np.ndarray]:
+        """Starting points tuned for DisplacedGamma model."""
+        return [
+            # [shape, mean, displacement]
+            np.array([0.3, 10000.0, -10.0]),
+            np.array([0.4, 20000.0, -5.0]),
+            np.array([0.3, 5000.0, -50.0]),
+            np.array([0.5, 15000.0, -20.0]),
+        ]
 
 
 # Model registry
