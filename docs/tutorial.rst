@@ -157,6 +157,88 @@ This allows you to distinguish:
 - Mutations that occurred on the ingroup lineage
 - Mutations that occurred on the outgroup lineage
 
+Frequency Filtering Options
+---------------------------
+
+MKado provides two different frequency-related options that serve distinct purposes:
+
+``--min-freq`` (Standard and Polarized MK tests)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This option **excludes** rare polymorphisms below a frequency threshold from the Pn/Ps counts.
+
+- **Applies to**: Standard MK test, Polarized MK test
+- **Purpose**: Filter out singletons or very rare variants that may be sequencing errors or very recent mutations
+- **How it works**: Polymorphisms with derived allele frequency < ``min_freq`` are not counted
+
+.. code-block:: bash
+
+   # Exclude polymorphisms below 5% frequency
+   mkado test alignment.fa -i dmel -o dsim --min-freq 0.05
+
+``--no-singletons`` (Standard and Polarized MK tests)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A convenience option that automatically sets ``--min-freq`` to exclude singletons (variants appearing only once).
+
+- **Applies to**: Standard MK test, Polarized MK test
+- **How it works**: Calculates ``1/n`` where n is the sample size, and uses that as the minimum frequency threshold
+- **Sample size**: Uses ingroup count, or ingroup + outgroup if ``--pool-polymorphisms`` is enabled
+
+.. code-block:: bash
+
+   # Exclude singletons automatically
+   mkado test alignment.fa -i dmel -o dsim --no-singletons
+
+   # For batch processing (threshold calculated per gene)
+   mkado batch alignments/ -i dmel -o dsim --no-singletons
+
+.. note::
+
+   ``--no-singletons`` cannot be used with ``--min-freq`` (they are mutually exclusive), ``--asymptotic``, or ``--alpha-tg``.
+
+``--freq-cutoffs`` (Asymptotic MK test)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This option defines the frequency range used for **curve fitting** in the asymptotic test — it does not exclude data.
+
+- **Applies to**: Aggregated asymptotic MK test (``mkado batch -a``)
+- **Default**: ``0.1,0.9``
+- **Purpose**: Avoid fitting to extreme frequency bins where data may be sparse or noisy
+- **How it works**:
+
+  1. All polymorphisms are counted and binned by derived frequency
+  2. Only bins within the ``[low, high]`` range are used to fit the exponential/linear model
+  3. The curve is still extrapolated to frequency = 1.0
+
+.. code-block:: bash
+
+   # Fit model using only bins between 15% and 85% frequency
+   mkado batch alignments/ -i dmel -o dsim -a --freq-cutoffs 0.15,0.85
+
+Key Differences
+^^^^^^^^^^^^^^^
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 35 40
+
+   * - Aspect
+     - ``--min-freq``
+     - ``--freq-cutoffs``
+   * - Effect
+     - **Excludes** polymorphisms from counts
+     - **Restricts** which bins are used for fitting
+   * - Scope
+     - Per-polymorphism filtering
+     - Curve-fitting range only
+   * - Data
+     - Polymorphisms below threshold not counted
+     - All polymorphisms counted; fitting uses subset
+   * - Analysis types
+     - Standard MK, Polarized MK
+     - Asymptotic MK (aggregated batch mode)
+
 Output Formats
 --------------
 

@@ -57,6 +57,9 @@ class BatchTask:
     min_freq: float = 0.0
     """Minimum derived allele frequency for polymorphisms."""
 
+    no_singletons: bool = False
+    """Exclude singletons (automatically calculate 1/n threshold)."""
+
     extract_only: bool = False
     """Only extract polymorphism data (for aggregated asymptotic mode)."""
 
@@ -125,6 +128,14 @@ def process_gene(task: BatchTask) -> WorkerResult:
                     warning=f"No outgroup sequences in {task.file_path.name}",
                 )
 
+            # Calculate singleton threshold if --no-singletons
+            min_freq = task.min_freq
+            if task.no_singletons:
+                n_samples = len(ingroup_seqs)
+                if task.pool_polymorphisms:
+                    n_samples += len(outgroup_seqs)
+                min_freq = 1.0 / n_samples
+
             # Extract only mode (for aggregated asymptotic)
             if task.extract_only:
                 result = extract_polymorphism_data(
@@ -162,7 +173,7 @@ def process_gene(task: BatchTask) -> WorkerResult:
                     outgroup2=outgroup2_seqs,
                     reading_frame=task.reading_frame,
                     pool_polymorphisms=task.pool_polymorphisms,
-                    min_frequency=task.min_freq,
+                    min_frequency=min_freq,
                 )
                 return WorkerResult(gene_id=gene_id, result=result)
 
@@ -172,7 +183,7 @@ def process_gene(task: BatchTask) -> WorkerResult:
                 outgroup=outgroup_seqs,
                 reading_frame=task.reading_frame,
                 pool_polymorphisms=task.pool_polymorphisms,
-                min_frequency=task.min_freq,
+                min_frequency=min_freq,
             )
             return WorkerResult(gene_id=gene_id, result=result)
 
@@ -183,6 +194,20 @@ def process_gene(task: BatchTask) -> WorkerResult:
                     gene_id=gene_id,
                     warning=f"No outgroup found for {task.file_path.name}",
                 )
+
+            # Calculate singleton threshold if --no-singletons
+            min_freq = task.min_freq
+            if task.no_singletons:
+                ingroup_seqs = SequenceSet.from_fasta(
+                    task.file_path, reading_frame=task.reading_frame
+                )
+                n_samples = len(ingroup_seqs)
+                if task.pool_polymorphisms:
+                    outgroup_seqs = SequenceSet.from_fasta(
+                        task.outgroup_file, reading_frame=task.reading_frame
+                    )
+                    n_samples += len(outgroup_seqs)
+                min_freq = 1.0 / n_samples
 
             # Extract only mode (for aggregated asymptotic)
             if task.extract_only:
@@ -215,7 +240,7 @@ def process_gene(task: BatchTask) -> WorkerResult:
                     outgroup2=task.outgroup2_file,
                     reading_frame=task.reading_frame,
                     pool_polymorphisms=task.pool_polymorphisms,
-                    min_frequency=task.min_freq,
+                    min_frequency=min_freq,
                 )
                 return WorkerResult(gene_id=gene_id, result=result)
 
@@ -225,7 +250,7 @@ def process_gene(task: BatchTask) -> WorkerResult:
                 outgroup=task.outgroup_file,
                 reading_frame=task.reading_frame,
                 pool_polymorphisms=task.pool_polymorphisms,
-                min_frequency=task.min_freq,
+                min_frequency=min_freq,
             )
             return WorkerResult(gene_id=gene_id, result=result)
 

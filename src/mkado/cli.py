@@ -288,6 +288,13 @@ def test(
         float,
         typer.Option("--min-freq", help="Min derived allele frequency (0.0-1.0)"),
     ] = 0.0,
+    no_singletons: Annotated[
+        bool,
+        typer.Option(
+            "--no-singletons",
+            help="Exclude singletons (sets --min-freq to 1/n automatically)",
+        ),
+    ] = False,
     plot_asymptotic: Annotated[
         Optional[Path],
         typer.Option(
@@ -331,6 +338,31 @@ def test(
 
     if output_format not in ("pretty", "tsv", "json"):
         typer.echo(f"Error: Invalid format '{output_format}'.", err=True)
+        raise typer.Exit(1)
+
+    # Validate option compatibility
+    if use_asymptotic and min_freq > 0.0:
+        typer.echo(
+            "Error: --min-freq cannot be used with --asymptotic. "
+            "The asymptotic test uses --freq-cutoffs for frequency filtering.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    if use_asymptotic and no_singletons:
+        typer.echo(
+            "Error: --no-singletons cannot be used with --asymptotic. "
+            "The asymptotic test uses --freq-cutoffs for frequency filtering.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    if no_singletons and min_freq > 0.0:
+        typer.echo(
+            "Error: --no-singletons and --min-freq cannot be used together. "
+            "--no-singletons automatically sets the frequency threshold.",
+            err=True,
+        )
         raise typer.Exit(1)
 
     fmt = OutputFormat(output_format)
@@ -377,6 +409,17 @@ def test(
             f"Found {len(ingroup_seqs)} ingroup, {len(outgroup_seqs)} outgroup sequences",
             err=True,
         )
+
+        # Calculate singleton frequency threshold if --no-singletons
+        if no_singletons:
+            n_samples = len(ingroup_seqs)
+            if pool_polymorphisms:
+                n_samples += len(outgroup_seqs)
+            min_freq = 1.0 / n_samples
+            typer.echo(
+                f"Excluding singletons (min frequency: {min_freq:.4f}, n={n_samples})",
+                err=True,
+            )
 
         # Run appropriate test
         if use_asymptotic:
@@ -429,6 +472,19 @@ def test(
                 err=True,
             )
             raise typer.Exit(1)
+
+        # Calculate singleton frequency threshold if --no-singletons
+        if no_singletons:
+            ingroup_seqs = SequenceSet.from_fasta(fasta, reading_frame=reading_frame)
+            outgroup_seqs = SequenceSet.from_fasta(outgroup_file, reading_frame=reading_frame)
+            n_samples = len(ingroup_seqs)
+            if pool_polymorphisms:
+                n_samples += len(outgroup_seqs)
+            min_freq = 1.0 / n_samples
+            typer.echo(
+                f"Excluding singletons (min frequency: {min_freq:.4f}, n={n_samples})",
+                err=True,
+            )
 
         # Run appropriate test
         if use_asymptotic:
@@ -582,6 +638,13 @@ def batch(
         float,
         typer.Option("--min-freq", help="Min derived allele frequency"),
     ] = 0.0,
+    no_singletons: Annotated[
+        bool,
+        typer.Option(
+            "--no-singletons",
+            help="Exclude singletons (sets frequency threshold to 1/n per gene)",
+        ),
+    ] = False,
     workers: Annotated[
         int,
         typer.Option("--workers", "-w", min=0, help="Parallel workers (0=auto, 1=sequential)"),
@@ -643,6 +706,55 @@ def batch(
         typer.echo(f"Error: Invalid format '{output_format}'.", err=True)
         raise typer.Exit(1)
 
+    # Validate option compatibility
+    if use_asymptotic and min_freq > 0.0:
+        typer.echo(
+            "Error: --min-freq cannot be used with --asymptotic. "
+            "The asymptotic test uses --freq-cutoffs for frequency filtering.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    if alpha_tg and min_freq > 0.0:
+        typer.echo(
+            "Error: --min-freq cannot be used with --alpha-tg. "
+            "The α_TG estimator uses all polymorphisms without frequency filtering.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    if alpha_tg and use_asymptotic:
+        typer.echo(
+            "Error: --alpha-tg and --asymptotic are mutually exclusive. "
+            "Choose one method for estimating alpha.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    if use_asymptotic and no_singletons:
+        typer.echo(
+            "Error: --no-singletons cannot be used with --asymptotic. "
+            "The asymptotic test uses --freq-cutoffs for frequency filtering.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    if alpha_tg and no_singletons:
+        typer.echo(
+            "Error: --no-singletons cannot be used with --alpha-tg. "
+            "The α_TG estimator uses all polymorphisms without frequency filtering.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    if no_singletons and min_freq > 0.0:
+        typer.echo(
+            "Error: --no-singletons and --min-freq cannot be used together. "
+            "--no-singletons automatically sets the frequency threshold.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
     fmt = OutputFormat(output_format)
 
     # Parse frequency cutoffs
@@ -695,6 +807,7 @@ def batch(
                 bootstrap=bootstrap,
                 pool_polymorphisms=pool_polymorphisms,
                 min_freq=min_freq,
+                no_singletons=no_singletons,
                 extract_only=(use_asymptotic and aggregate) or alpha_tg,
             )
             for f in alignment_files
@@ -843,6 +956,7 @@ def batch(
                     bootstrap=bootstrap,
                     pool_polymorphisms=pool_polymorphisms,
                     min_freq=min_freq,
+                    no_singletons=no_singletons,
                     extract_only=(use_asymptotic and aggregate) or alpha_tg,
                 )
             )
