@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from mkado.analysis.alpha_tg import AlphaTGResult
     from mkado.analysis.asymptotic import AsymptoticMKResult
+    from mkado.analysis.dfe import DFEResult
     from mkado.analysis.mk_test import MKResult
     from mkado.analysis.polarized import PolarizedMKResult
 
@@ -22,7 +23,7 @@ class OutputFormat(Enum):
 
 
 def format_result(
-    result: MKResult | PolarizedMKResult | AsymptoticMKResult | AlphaTGResult,
+    result: MKResult | PolarizedMKResult | AsymptoticMKResult | AlphaTGResult | DFEResult,
     format: OutputFormat = OutputFormat.PRETTY,
 ) -> str:
     """Format MK test results for output.
@@ -47,10 +48,11 @@ def format_result(
         raise ValueError(f"Unknown format: {format}")
 
 
-def _format_tsv(result: MKResult | PolarizedMKResult | AsymptoticMKResult | AlphaTGResult) -> str:
+def _format_tsv(result: MKResult | PolarizedMKResult | AsymptoticMKResult | AlphaTGResult | DFEResult) -> str:
     """Format results as tab-separated values."""
     from mkado.analysis.alpha_tg import AlphaTGResult
     from mkado.analysis.asymptotic import AsymptoticMKResult
+    from mkado.analysis.dfe import DFEResult
     from mkado.analysis.mk_test import MKResult
     from mkado.analysis.polarized import PolarizedMKResult
 
@@ -103,6 +105,15 @@ def _format_tsv(result: MKResult | PolarizedMKResult | AsymptoticMKResult | Alph
             f"{result.dn_total}\t{result.ds_total}\t{result.pn_total}\t{result.ps_total}\t"
             f"{result.alpha_tg:.6f}\t{result.ni_tg:.6f}\t{result.ci_low:.6f}\t{result.ci_high:.6f}\t"
             f"{result.num_genes}"
+        )
+        return f"{header}\n{values}"
+
+    elif isinstance(result, DFEResult):
+        header = "model\talpha\tCI_low\tCI_high\tomega_a\tomega_na\tlog_likelihood\tAIC\tconverged"
+        values = (
+            f"{result.model}\t{result.alpha:.6f}\t{result.alpha_down:.6f}\t{result.alpha_up:.6f}\t"
+            f"{result.omega_a:.6f}\t{result.omega_na:.6f}\t{result.log_likelihood:.2f}\t"
+            f"{result.aic:.2f}\t{result.converged}"
         )
         return f"{header}\n{values}"
 

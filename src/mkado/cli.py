@@ -24,6 +24,7 @@ from mkado.analysis.asymptotic import (
     asymptotic_mk_test,
     asymptotic_mk_test_aggregated,
 )
+from mkado.analysis.dfe import dfe_alpha, AVAILABLE_MODELS
 from mkado.analysis.mk_test import mk_test
 from mkado.analysis.polarized import polarized_mk_test
 from mkado.batch_workers import BatchTask, WorkerResult, process_gene
@@ -1079,6 +1080,165 @@ def info(
         typer.echo("\nSequences:")
         for seq in seqs.sequences:
             typer.echo(f"  {seq.name} ({len(seq)} bp)")
+
+
+@app.command()
+def dfe(
+    fasta: Annotated[
+        Path,
+        typer.Argument(help="FASTA file (combined alignment, or ingroup sequences)"),
+    ],
+    outgroup_file: Annotated[
+        Optional[Path],
+        typer.Argument(help="Outgroup FASTA file (only for separate files mode)"),
+    ] = None,
+    # === Sequence filtering (combined file mode) ===
+    ingroup_match: Annotated[
+        Optional[str],
+        typer.Option(
+            "--ingroup-match", "-i",
+            help="Ingroup sequence name pattern (enables combined file mode)",
+        ),
+    ] = None,
+    outgroup_match: Annotated[
+        Optional[str],
+        typer.Option(
+            "--outgroup-match", "-o",
+            help="Outgroup sequence name pattern (required with -i)",
+        ),
+    ] = None,
+    # === DFE options ===
+    model: Annotated[
+        str,
+        typer.Option(
+            "--model", "-m",
+            help="DFE model: GammaZero, GammaExpo (default), GammaGamma, DisplacedGamma",
+        ),
+    ] = "GammaExpo",
+    # === Common options ===
+    output_format: Annotated[
+        str,
+        typer.Option("--format", "-f", help="Output format: pretty, tsv, json"),
+    ] = "pretty",
+    reading_frame: Annotated[
+        int,
+        typer.Option("--reading-frame", "-r", min=1, max=3, help="Reading frame (1-3)"),
+    ] = 1,
+    pool_polymorphisms: Annotated[
+        bool,
+        typer.Option("--pool-polymorphisms", help="Pool polymorphisms from both populations"),
+    ] = False,
+) -> None:
+    """Estimate alpha using DFE-based methods (GRAPES models).
+
+    DFE (Distribution of Fitness Effects) methods model the full spectrum
+    of selection coefficients to estimate alpha more accurately than
+    asymptotic MK approaches. According to Al-Saffar & Hahn (2022),
+    these methods significantly outperform the asymptotic MK approach.
+
+    MODELS:
+
+    - GammaZero: Gamma DFE with no beneficial mutations
+    - GammaExpo: Gamma (deleterious) + Exponential (beneficial) - BEST PERFORMER
+    - GammaGamma: Gamma (deleterious) + Gamma (beneficial)
+    - DisplacedGamma: Shifted Gamma allowing some beneficial mutations
+
+    TWO MODES OF OPERATION:
+
+    1. COMBINED FILE MODE:
+       Use -i and -o to filter sequences by name pattern from a single alignment.
+
+       mkado dfe alignment.fa -i "speciesA" -o "speciesB"
+
+    2. SEPARATE FILES MODE:
+       Provide two FASTA files (ingroup and outgroup).
+
+       mkado dfe ingroup.fa outgroup.fa
+
+    EXAMPLES:
+
+        mkado dfe alignment.fa -i "dmel" -o "dsim"
+        mkado dfe alignment.fa -i "dmel" -o "dsim" -m GammaGamma
+        mkado dfe ingroup.fa outgroup.fa -m DisplacedGamma -f json
+    """
+    from mkado.core.sequences import SequenceSet
+
+    if output_format not in ("pretty", "tsv", "json"):
+        typer.echo(f"Error: Invalid format '{output_format}'.", err=True)
+        raise typer.Exit(1)
+
+    if model not in AVAILABLE_MODELS:
+        typer.echo(
+            f"Error: Unknown model '{model}'. "
+            f"Available: {', '.join(AVAILABLE_MODELS)}",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    fmt = OutputFormat(output_format)
+
+    # Determine mode
+    combined_mode = ingroup_match is not None or outgroup_match is not None
+
+    if combined_mode:
+        # Combined file mode
+        if not ingroup_match or not outgroup_match:
+            typer.echo(
+                "Error: Combined mode requires both -i/--ingroup-match and -o/--outgroup-match",
+                err=True,
+            )
+            raise typer.Exit(1)
+
+        if outgroup_file is not None:
+            typer.echo(
+                "Error: Don't provide outgroup file when using -i/-o (combined mode)",
+                err=True,
+            )
+            raise typer.Exit(1)
+
+        # Load and filter sequences
+        all_seqs = SequenceSet.from_fasta(fasta, reading_frame=reading_frame)
+        ingroup_seqs = all_seqs.filter_by_name(ingroup_match)
+        outgroup_seqs = all_seqs.filter_by_name(outgroup_match)
+
+        if len(ingroup_seqs) == 0:
+            typer.echo(f"Error: No sequences match ingroup pattern '{ingroup_match}'", err=True)
+            raise typer.Exit(1)
+        if len(outgroup_seqs) == 0:
+            typer.echo(f"Error: No sequences match outgroup pattern '{outgroup_match}'", err=True)
+            raise typer.Exit(1)
+
+        typer.echo(
+            f"Found {len(ingroup_seqs)} ingroup, {len(outgroup_seqs)} outgroup sequences",
+            err=True,
+        )
+
+        result = dfe_alpha(
+            ingroup=ingroup_seqs,
+            outgroup=outgroup_seqs,
+            reading_frame=reading_frame,
+            model=model,
+            pool_polymorphisms=pool_polymorphisms,
+        )
+
+    else:
+        # Separate files mode
+        if outgroup_file is None:
+            typer.echo(
+                "Error: Provide outgroup file, or use -i/-o for combined file mode",
+                err=True,
+            )
+            raise typer.Exit(1)
+
+        result = dfe_alpha(
+            ingroup=fasta,
+            outgroup=outgroup_file,
+            reading_frame=reading_frame,
+            model=model,
+            pool_polymorphisms=pool_polymorphisms,
+        )
+
+    typer.echo(format_result(result, fmt))
 
 
 if __name__ == "__main__":
