@@ -39,16 +39,18 @@ ATGGTGATG
         assert "--min-freq cannot be used with --asymptotic" in result.output
         assert "--freq-cutoffs" in result.output
 
-    def test_alpha_tg_with_min_freq_error(self, tmp_path: Path) -> None:
-        """Test that --alpha-tg and --min-freq cannot be used together."""
+    def test_alpha_tg_with_min_freq_succeeds(self, tmp_path: Path) -> None:
+        """Test that --alpha-tg and --min-freq can be used together."""
         # Create a minimal test directory with alignment
         alignment_dir = tmp_path / "alignments"
         alignment_dir.mkdir()
         fasta = alignment_dir / "test.fa"
         fasta.write_text(""">speciesA_1
-ATGATGATG
+ATGATGATGATGATGATG
+>speciesA_2
+ATGCTGATGATGATGATG
 >speciesB_1
-ATGGTGATG
+ATGGTGATGATGATGATG
 """)
 
         result = runner.invoke(
@@ -63,8 +65,8 @@ ATGGTGATG
             ],
         )
 
-        assert result.exit_code == 1
-        assert "--min-freq cannot be used with --alpha-tg" in result.output
+        # Should succeed
+        assert result.exit_code == 0
 
     def test_alpha_tg_with_asymptotic_error(self, tmp_path: Path) -> None:
         """Test that --alpha-tg and --asymptotic cannot be used together."""
@@ -279,15 +281,17 @@ ATGGTGATG
         assert "Excluding singletons" in result.output
         assert "min frequency" in result.output
 
-    def test_batch_no_singletons_with_alpha_tg_error(self, tmp_path: Path) -> None:
-        """Test that --no-singletons and --alpha-tg cannot be used together."""
+    def test_batch_no_singletons_with_alpha_tg_succeeds(self, tmp_path: Path) -> None:
+        """Test that --no-singletons and --alpha-tg can be used together."""
         alignment_dir = tmp_path / "alignments"
         alignment_dir.mkdir()
         fasta = alignment_dir / "test.fa"
         fasta.write_text(""">speciesA_1
-ATGATGATG
+ATGATGATGATGATGATG
+>speciesA_2
+ATGCTGATGATGATGATG
 >speciesB_1
-ATGGTGATG
+ATGGTGATGATGATGATG
 """)
 
         result = runner.invoke(
@@ -302,5 +306,5 @@ ATGGTGATG
             ],
         )
 
-        assert result.exit_code == 1
-        assert "--no-singletons cannot be used with --alpha-tg" in result.output
+        # Should succeed
+        assert result.exit_code == 0

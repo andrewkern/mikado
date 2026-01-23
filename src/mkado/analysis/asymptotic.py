@@ -223,6 +223,7 @@ def extract_polymorphism_data(
     genetic_code: GeneticCode | None = None,
     pool_polymorphisms: bool = False,
     gene_id: str = "",
+    min_frequency: float = 0.0,
 ) -> PolymorphismData:
     """Extract polymorphism and divergence data without curve fitting.
 
@@ -238,6 +239,8 @@ def extract_polymorphism_data(
             population (libsequence convention). Frequencies are still
             calculated from ingroup only.
         gene_id: Identifier for this gene
+        min_frequency: Minimum derived allele frequency for polymorphisms
+            (polymorphisms below this threshold are excluded)
 
     Returns:
         PolymorphismData containing polymorphisms with frequencies and divergence counts
@@ -300,6 +303,10 @@ def extract_polymorphism_data(
         derived_freq = 1.0 - freqs[ancestral]
 
         if derived_freq <= 0 or derived_freq >= 1:
+            continue
+
+        # Apply minimum frequency filter
+        if derived_freq < min_frequency:
             continue
 
         # Classify the polymorphism

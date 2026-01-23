@@ -136,7 +136,7 @@ def process_gene(task: BatchTask) -> WorkerResult:
                     n_samples += len(outgroup_seqs)
                 min_freq = 1.0 / n_samples
 
-            # Extract only mode (for aggregated asymptotic)
+            # Extract only mode (for aggregated asymptotic or alpha-tg)
             if task.extract_only:
                 result = extract_polymorphism_data(
                     ingroup=ingroup_seqs,
@@ -144,6 +144,7 @@ def process_gene(task: BatchTask) -> WorkerResult:
                     reading_frame=task.reading_frame,
                     pool_polymorphisms=task.pool_polymorphisms,
                     gene_id=gene_id,
+                    min_frequency=min_freq,
                 )
                 return WorkerResult(gene_id=gene_id, result=result)
 
@@ -209,7 +210,7 @@ def process_gene(task: BatchTask) -> WorkerResult:
                     n_samples += len(outgroup_seqs)
                 min_freq = 1.0 / n_samples
 
-            # Extract only mode (for aggregated asymptotic)
+            # Extract only mode (for aggregated asymptotic or alpha-tg)
             if task.extract_only:
                 result = extract_polymorphism_data(
                     ingroup=task.file_path,
@@ -217,6 +218,7 @@ def process_gene(task: BatchTask) -> WorkerResult:
                     reading_frame=task.reading_frame,
                     pool_polymorphisms=task.pool_polymorphisms,
                     gene_id=gene_id,
+                    min_frequency=min_freq,
                 )
                 return WorkerResult(gene_id=gene_id, result=result)
 

@@ -715,14 +715,6 @@ def batch(
         )
         raise typer.Exit(1)
 
-    if alpha_tg and min_freq > 0.0:
-        typer.echo(
-            "Error: --min-freq cannot be used with --alpha-tg. "
-            "The α_TG estimator uses all polymorphisms without frequency filtering.",
-            err=True,
-        )
-        raise typer.Exit(1)
-
     if alpha_tg and use_asymptotic:
         typer.echo(
             "Error: --alpha-tg and --asymptotic are mutually exclusive. "
@@ -735,14 +727,6 @@ def batch(
         typer.echo(
             "Error: --no-singletons cannot be used with --asymptotic. "
             "The asymptotic test uses --freq-cutoffs for frequency filtering.",
-            err=True,
-        )
-        raise typer.Exit(1)
-
-    if alpha_tg and no_singletons:
-        typer.echo(
-            "Error: --no-singletons cannot be used with --alpha-tg. "
-            "The α_TG estimator uses all polymorphisms without frequency filtering.",
             err=True,
         )
         raise typer.Exit(1)

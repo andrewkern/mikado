@@ -162,12 +162,12 @@ Frequency Filtering Options
 
 MKado provides two different frequency-related options that serve distinct purposes:
 
-``--min-freq`` (Standard and Polarized MK tests)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+``--min-freq`` (Standard MK, Polarized MK, and α_TG)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This option **excludes** rare polymorphisms below a frequency threshold from the Pn/Ps counts.
 
-- **Applies to**: Standard MK test, Polarized MK test
+- **Applies to**: Standard MK test, Polarized MK test, α_TG estimator
 - **Purpose**: Filter out singletons or very rare variants that may be sequencing errors or very recent mutations
 - **How it works**: Polymorphisms with derived allele frequency < ``min_freq`` are not counted
 
@@ -176,12 +176,19 @@ This option **excludes** rare polymorphisms below a frequency threshold from the
    # Exclude polymorphisms below 5% frequency
    mkado test alignment.fa -i dmel -o dsim --min-freq 0.05
 
-``--no-singletons`` (Standard and Polarized MK tests)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   # Also works with alpha-tg
+   mkado batch alignments/ -i dmel -o dsim --alpha-tg --min-freq 0.05
+
+.. note::
+
+   ``--min-freq`` cannot be used with ``--asymptotic``. The asymptotic test uses ``--freq-cutoffs`` for frequency filtering.
+
+``--no-singletons`` (Standard MK, Polarized MK, and α_TG)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 A convenience option that automatically sets ``--min-freq`` to exclude singletons (variants appearing only once).
 
-- **Applies to**: Standard MK test, Polarized MK test
+- **Applies to**: Standard MK test, Polarized MK test, α_TG estimator
 - **How it works**: Calculates ``1/n`` where n is the sample size, and uses that as the minimum frequency threshold
 - **Sample size**: Uses ingroup count, or ingroup + outgroup if ``--pool-polymorphisms`` is enabled
 
@@ -193,9 +200,12 @@ A convenience option that automatically sets ``--min-freq`` to exclude singleton
    # For batch processing (threshold calculated per gene)
    mkado batch alignments/ -i dmel -o dsim --no-singletons
 
+   # Also works with alpha-tg
+   mkado batch alignments/ -i dmel -o dsim --alpha-tg --no-singletons
+
 .. note::
 
-   ``--no-singletons`` cannot be used with ``--min-freq`` (they are mutually exclusive), ``--asymptotic``, or ``--alpha-tg``.
+   ``--no-singletons`` cannot be used with ``--min-freq`` (they are mutually exclusive) or ``--asymptotic``.
 
 ``--freq-cutoffs`` (Asymptotic MK test)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -236,7 +246,7 @@ Key Differences
      - Polymorphisms below threshold not counted
      - All polymorphisms counted; fitting uses subset
    * - Analysis types
-     - Standard MK, Polarized MK
+     - Standard MK, Polarized MK, α_TG
      - Asymptotic MK (aggregated batch mode)
 
 Output Formats
