@@ -11,6 +11,7 @@ A modern Python implementation of the McDonald-Kreitman test toolkit for detecti
 - **Standard MK test**: Classic 2x2 contingency table with Fisher's exact test
 - **Polarized MK test**: Uses a third outgroup to assign mutations to lineages
 - **Asymptotic MK test**: Frequency-bin α estimates with exponential extrapolation (Messer & Petrov 2013)
+- **DFE-based α estimation**: Distribution of Fitness Effects models following GRAPES (Galtier 2016)
 - **Tarone-Greenland α_TG**: Weighted multi-gene estimator that corrects for sample size heterogeneity (Stoletzki & Eyre-Walker 2011)
 - **Batch processing**: Process multiple genes with parallel execution and Benjamini-Hochberg correction for multiple testing
 - **Volcano plots**: Visualize batch results with publication-ready volcano plots
@@ -200,6 +201,12 @@ result = asymptotic_mk_test("ingroup.fa", "outgroup.fa")
 print(f"Asymptotic Alpha: {result.alpha_asymptotic}")
 print(f"95% CI: {result.ci_low} - {result.ci_high}")
 
+# DFE-based alpha estimation (GRAPES methodology)
+from mkado.analysis.dfe import dfe_alpha
+result = dfe_alpha("ingroup.fa", "outgroup.fa", model="GammaExpo")
+print(f"DFE Alpha: {result.alpha}")
+print(f"omega_a: {result.omega_a}")
+
 # Combined file mode - filter by sequence name
 all_seqs = SequenceSet.from_fasta("combined.fa")
 ingroup = all_seqs.filter_by_name("dmel")
@@ -263,6 +270,7 @@ See the [documentation](https://mkado.readthedocs.io/) for detailed tutorials an
 
 ## References
 
+- Galtier, N. (2016). Adaptive Protein Evolution in Animals and the Effective Population Size Hypothesis. PLoS Genetics, 12(1), e1005774. https://doi.org/10.1371/journal.pgen.1005774
 - Haller, B. C., & Messer, P. W. (2017). asymptoticMK: A web-based tool for the asymptotic McDonald–Kreitman test. G3: Genes, Genomes, Genetics, 7(5), 1569-1575. https://doi.org/10.1534/g3.117.039693
 - McDonald, J. H., & Kreitman, M. (1991). Adaptive protein evolution at the Adh locus in Drosophila. Nature, 351(6328), 652-654. https://doi.org/10.1038/351652a0
 - Messer, P. W., & Petrov, D. A. (2013). Frequent adaptation and the McDonald–Kreitman test. PNAS, 110(21), 8615-8620. https://doi.org/10.1073/pnas.1220835110

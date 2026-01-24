@@ -9,6 +9,7 @@ Quick Start
 .. code-block:: python
 
    from mkado import mk_test, asymptotic_mk_test, SequenceSet
+   from mkado.analysis.dfe import dfe_alpha
 
    # Run standard MK test
    result = mk_test("ingroup.fa", "outgroup.fa")
@@ -18,6 +19,10 @@ Quick Start
    # Run asymptotic MK test
    result = asymptotic_mk_test("ingroup.fa", "outgroup.fa")
    print(f"Asymptotic Alpha: {result.alpha_asymptotic}")
+
+   # Run DFE-based alpha estimation (GRAPES methodology)
+   result = dfe_alpha("ingroup.fa", "outgroup.fa", model="GammaExpo")
+   print(f"DFE Alpha: {result.alpha}")
 
 Core Classes
 ------------
@@ -69,6 +74,22 @@ Polarized MK Test
 ^^^^^^^^^^^^^^^^^
 
 .. automodule:: mkado.analysis.polarized
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+DFE-Based Alpha Estimation
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. automodule:: mkado.analysis.dfe
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+DFE Models
+^^^^^^^^^^
+
+.. automodule:: mkado.analysis.dfe_models
    :members:
    :undoc-members:
    :show-inheritance:
@@ -132,6 +153,31 @@ Asymptotic Analysis
    # Access per-bin data
    for freq, alpha in zip(result.frequencies, result.alphas):
        print(f"Frequency {freq:.2f}: Alpha = {alpha:.3f}")
+
+DFE-Based Alpha Estimation
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: python
+
+   from mkado.analysis.dfe import dfe_alpha, compare_models
+
+   # Fit GammaExpo model (recommended default)
+   result = dfe_alpha("ingroup.fa", "outgroup.fa", model="GammaExpo")
+
+   print(f"Alpha: {result.alpha:.4f}")
+   print(f"95% CI: [{result.alpha_down:.4f}, {result.alpha_up:.4f}]")
+   print(f"omega_a: {result.omega_a:.4f}")
+
+   # Access fitted DFE parameters
+   print("DFE Parameters:")
+   for param, value in result.dfe_params.items():
+       print(f"  {param}: {value:.4f}")
+
+   # Compare multiple DFE models
+   results = compare_models("ingroup.fa", "outgroup.fa")
+   print("\nModel comparison (sorted by AIC):")
+   for r in results:
+       print(f"  {r.model}: alpha={r.alpha:.4f}, AIC={r.aic:.2f}")
 
 Batch Processing
 ^^^^^^^^^^^^^^^^
