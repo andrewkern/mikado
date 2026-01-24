@@ -101,13 +101,19 @@ A single displaced gamma distribution spanning both deleterious and beneficial e
 
 - **DFE**: Gamma(β, mean) shifted by displacement S\ :sub:`0`
 
+The DFE has support on S < -S\ :sub:`0`. This means:
+
+- S\ :sub:`0` = 0: Only deleterious mutations (S < 0), equivalent to GammaZero
+- S\ :sub:`0` < 0 (e.g., -0.4): Allows beneficial mutations up to S = 0.4
+- S\ :sub:`0` > 0 (e.g., 0.4): Only strongly deleterious mutations (S < -0.4)
+
 Parameters:
 
-- ``shape``: Gamma shape
-- ``mean``: Gamma mean
-- ``displacement``: Shift parameter (positive values shift toward beneficial)
+- ``shape``: Gamma shape parameter
+- ``mean``: Gamma mean parameter
+- ``displacement``: Shift parameter S\ :sub:`0` (negative values allow beneficial mutations)
 
-This model has 3 free parameters. It's useful when the DFE is expected to be continuous across the neutral boundary.
+This model has 3 free parameters. It's useful when the DFE is expected to be unimodal and continuous, potentially spanning the neutral boundary.
 
 Computing Alpha
 ---------------
