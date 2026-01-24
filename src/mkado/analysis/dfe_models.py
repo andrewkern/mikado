@@ -181,8 +181,20 @@ class DFEModel(ABC):
     @property
     @abstractmethod
     def param_bounds(self) -> list[tuple[float, float]]:
-        """Bounds for optimization (log-scale where appropriate)."""
+        """Bounds for optimization (in original parameter space)."""
         pass
+
+    @property
+    def log_scale_params(self) -> list[bool]:
+        """Which parameters should be optimized in log space.
+
+        Following GRAPES reparametrization convention:
+        - Mean parameters (negGmean, posGmean) use log scale
+        - Shape and proportion parameters use linear scale
+
+        Override in subclasses to specify log-scale parameters.
+        """
+        return [False] * self.n_params
 
     @abstractmethod
     def density(self, s: float, params: np.ndarray) -> float:
@@ -426,6 +438,40 @@ class DFEModel(ABC):
 
         return -ll  # Return negative for minimization
 
+    def _to_opt_space(self, params: np.ndarray) -> np.ndarray:
+        """Transform parameters to optimization space (log for some params)."""
+        log_scale = self.log_scale_params
+        result = np.zeros_like(params)
+        for i, (p, use_log) in enumerate(zip(params, log_scale)):
+            if use_log:
+                result[i] = np.log(max(p, 1e-100))
+            else:
+                result[i] = p
+        return result
+
+    def _from_opt_space(self, opt_params: np.ndarray) -> np.ndarray:
+        """Transform parameters from optimization space back to original."""
+        log_scale = self.log_scale_params
+        result = np.zeros_like(opt_params)
+        for i, (p, use_log) in enumerate(zip(opt_params, log_scale)):
+            if use_log:
+                result[i] = np.exp(p)
+            else:
+                result[i] = p
+        return result
+
+    def _get_opt_bounds(self) -> list[tuple[float, float]]:
+        """Get bounds in optimization space."""
+        bounds = self.param_bounds
+        log_scale = self.log_scale_params
+        opt_bounds = []
+        for (low, high), use_log in zip(bounds, log_scale):
+            if use_log:
+                opt_bounds.append((np.log(max(low, 1e-100)), np.log(high)))
+            else:
+                opt_bounds.append((low, high))
+        return opt_bounds
+
     def fit(
         self,
         data: DFEInput,
@@ -448,10 +494,17 @@ class DFEModel(ABC):
             precalc = PrecomputedData(data.n_samples)
 
         bounds = self.param_bounds
+        opt_bounds = self._get_opt_bounds()
+        log_scale = self.log_scale_params
         n_params = self.n_params
 
         best_result = None
         best_nll = float("inf")
+
+        # Objective function in optimization space
+        def objective(opt_params: np.ndarray) -> float:
+            params = self._from_opt_space(opt_params)
+            return self.negative_log_likelihood(params, data, precalc)
 
         # Multiple starting points with strategic choices
         rng = np.random.default_rng(42)
@@ -462,20 +515,28 @@ class DFEModel(ABC):
 
         all_starts = []
 
-        # Add model-specific starts
-        all_starts.extend(model_starts)
+        # Add model-specific starts (transform to opt space)
+        for start in model_starts:
+            all_starts.append(self._to_opt_space(start))
 
-        # Add middle of bounds
-        all_starts.append(np.array([(b[0] + b[1]) / 2 for b in bounds]))
+        # Add middle of bounds in opt space
+        middle = []
+        for (low, high), use_log in zip(bounds, log_scale):
+            if use_log:
+                # Geometric mean in original space = arithmetic mean in log space
+                middle.append((np.log(max(low, 1e-100)) + np.log(high)) / 2)
+            else:
+                middle.append((low + high) / 2)
+        all_starts.append(np.array(middle))
 
-        # Add random starts
+        # Add random starts in opt space
         for _ in range(max(0, n_starts - len(all_starts))):
-            x0 = np.zeros(self.n_params)
-            for i, b in enumerate(bounds):
-                if b[1] > 1e4:  # Large upper bound suggests log-scale
-                    x0[i] = np.exp(rng.uniform(np.log(max(b[0], 1)), np.log(b[1])))
+            x0 = np.zeros(n_params)
+            for i, ((low, high), use_log) in enumerate(zip(bounds, log_scale)):
+                if use_log:
+                    x0[i] = rng.uniform(np.log(max(low, 1e-100)), np.log(high))
                 else:
-                    x0[i] = rng.uniform(b[0], b[1])
+                    x0[i] = rng.uniform(low, high)
             all_starts.append(x0)
 
         for x0 in all_starts:
@@ -483,20 +544,18 @@ class DFEModel(ABC):
             try:
                 # Try L-BFGS-B first
                 result = optimize.minimize(
-                    self.negative_log_likelihood,
+                    objective,
                     x0,
-                    args=(data, precalc),
                     method="L-BFGS-B",
-                    bounds=bounds,
+                    bounds=opt_bounds,
                     options={"maxiter": 10000, "ftol": 1e-8},
                 )
 
                 # If L-BFGS-B failed or gave abnormal termination, try Nelder-Mead
                 if not result.success:
                     result_nm = optimize.minimize(
-                        self.negative_log_likelihood,
+                        objective,
                         x0,
-                        args=(data, precalc),
                         method="Nelder-Mead",
                         options={"maxiter": 10000, "xatol": 1e-6, "fatol": 1e-6},
                     )
@@ -525,8 +584,8 @@ class DFEModel(ABC):
                 converged=False,
             )
 
-        # Extract fitted parameters
-        fitted_params = best_result.x
+        # Extract fitted parameters (transform back from opt space)
+        fitted_params = self._from_opt_space(best_result.x)
         log_likelihood = -best_result.fun
         aic = 2 * n_params - 2 * log_likelihood
 
@@ -695,6 +754,11 @@ class GammaZeroModel(DFEModel):
             (1.0, 1e6),       # mean (|4*Ne*s|)
         ]
 
+    @property
+    def log_scale_params(self) -> list[bool]:
+        # GRAPES: negGshape=none, negGmean=log
+        return [False, True]
+
     def density(self, s: float, params: np.ndarray) -> float:
         shape, mean = params
         return gamma_density(s, shape, mean)
@@ -740,12 +804,22 @@ class GammaExpoModel(DFEModel):
 
     @property
     def param_bounds(self) -> list[tuple[float, float]]:
+        # Bounds matching GRAPES exactly:
+        # - negGshape: [0.05, 100]
+        # - negGmean: [1, 10^20]
+        # - pos_prop: [0, 0.1] (MAX_ORIENTATION_ERROR)
+        # - posGmean: [0.0001, 10000]
         return [
-            (0.05, 100.0),    # shape_del
-            (1.0, 1e6),       # mean_del
-            (0.0, 0.5),       # prop_ben
-            (1e-4, 1e4),      # mean_ben
+            (0.05, 100.0),    # shape_del (negGshape)
+            (1.0, 1e6),       # mean_del (negGmean) - capped at 1e6 for practicality
+            (0.0, 0.1),       # prop_ben (pos_prop) - GRAPES uses MAX_ORIENTATION_ERROR=0.1
+            (1e-4, 1e4),      # mean_ben (posGmean)
         ]
+
+    @property
+    def log_scale_params(self) -> list[bool]:
+        # GRAPES: negGshape=none, negGmean=log, pos_prop=none, posGmean=log
+        return [False, True, False, True]
 
     def density(self, s: float, params: np.ndarray) -> float:
         shape_del, mean_del, prop_ben, mean_ben = params
@@ -757,20 +831,23 @@ class GammaExpoModel(DFEModel):
         return gamma_expo_density_grid(s_grid, shape_del, mean_del, prop_ben, mean_ben)
 
     def _get_starting_points(self) -> list[np.ndarray]:
-        """Starting points tuned for GammaExpo model.
+        """Starting points for GammaExpo model matching GRAPES.
 
-        Based on GRAPES typical values. The key is to try starting points
-        with non-trivial prop_ben to escape local minima with prop_ben≈0.
+        GRAPES uses mean_del=10000 for all starting points (the "basic" value).
+        Testing shows that shape_del around 0.3 leads to the GRAPES-compatible
+        basin, while higher values (e.g., 0.4) can lead to a different basin
+        with slightly better likelihood but different biological interpretation.
+
+        Using consistent starting points ensures we converge to the same basin
+        as GRAPES, which is important for result comparability.
         """
         return [
             # [shape_del, mean_del, prop_ben, mean_ben]
-            # GRAPES default starting point (empirically best)
-            np.array([0.378, 10177.0, 0.0084, 10000.0]),
-            np.array([0.38, 10000.0, 0.008, 5000.0]),
-            np.array([0.3, 10000.0, 0.01, 1000.0]),
-            np.array([0.4, 15000.0, 0.005, 2000.0]),
-            np.array([0.35, 5000.0, 0.02, 500.0]),
-            np.array([0.3, 20000.0, 0.001, 100.0]),
+            # All starts use shape ~0.3, mean_del=10000, mean_ben=10000
+            np.array([0.30, 10000.0, 0.010, 10000.0]),
+            np.array([0.35, 10000.0, 0.008, 10000.0]),
+            np.array([0.32, 10000.0, 0.005, 10000.0]),
+            np.array([0.28, 10000.0, 0.015, 10000.0]),
         ]
 
 
