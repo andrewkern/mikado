@@ -336,7 +336,7 @@ ATGATGATG
             Setting min_frequency to exactly 1/n can fail to
             exclude singletons due to floating point. For n=4, derived_freq
             computes to exactly 0.25 and 1/n = 0.25, so 0.25 < 0.25 is False
-            and the singleton passes through. mktest.py need <= instead of <.
+            and the singleton passes through. 
             """
             n = 4
             # 4 sequences: 3 ancestral (ATG), 1 derived (CTG) at codon 0 -> derived freq = 1/4
