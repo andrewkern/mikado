@@ -160,7 +160,7 @@ def mk_test(
             derived_freq = 1.0 - freqs[ancestral]
 
             # Skip if below minimum frequency threshold
-            if derived_freq < min_frequency:
+            if derived_freq < min_frequency + 1e-10:
                 continue
 
         result = classify_func(codon_idx)
