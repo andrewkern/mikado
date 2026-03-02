@@ -1,6 +1,6 @@
 [project]
 name = "mkado"
-version = "0.1.2"
+version = "0.2.0"
 description = "Modern Python implementation of the McDonald-Kreitman test toolkit"
 readme = "README.md"
 license = "MIT"
