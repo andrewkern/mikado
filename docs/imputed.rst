@@ -1,15 +1,15 @@
 Imputed MK Test
 ===============
 
-MKado implements the imputed MK test (impMKT) from `Murga-Moreno et al. (2022)`_, which corrects for slightly deleterious mutations by imputing their count from the synonymous frequency spectrum rather than discarding low-frequency variants.
+MKado implements the imputed MK test from `Murga-Moreno et al. (2022)`_, which corrects for slightly deleterious mutations by imputing their count from the synonymous frequency spectrum rather than discarding low-frequency polymorphisms.
 
 Background
 ----------
 
-The standard MK test is biased by **slightly deleterious mutations** (SDMs) that inflate nonsynonymous polymorphism (Pn) without contributing to divergence (Dn). Several approaches exist to address this:
+The standard MK test is biased by **slightly deleterious mutations** that inflate nonsynonymous polymorphism (Pn) without contributing to divergence (Dn). Several approaches exist to address this:
 
 - **Asymptotic MK test**: Fits a curve across the full frequency spectrum and extrapolates to x=1
-- **fwwMKT** (frequency-weighted): Discards all low-frequency polymorphisms below a cutoff
+- **Standard MK with frequency filtering**: Discards all low-frequency polymorphisms below a cutoff (e.g., ``--min-freq``, ``--no-singletons``)
 
 The imputed MK test takes a different approach: instead of discarding low-frequency data, it **estimates how many** low-frequency nonsynonymous polymorphisms are slightly deleterious, using the synonymous frequency spectrum as a neutral reference.
 
@@ -20,7 +20,7 @@ Under neutrality, nonsynonymous and synonymous polymorphisms should have the sam
 
 By imputing this excess, the test:
 
-- Retains more data than methods that discard all low-frequency variants
+- Retains more data than methods that discard all low-frequency polymorphisms
 - Increases statistical power at the gene level
 - Decomposes the distribution of fitness effects (DFE) into interpretable fractions
 
@@ -118,7 +118,7 @@ The imputed test reports:
 - **alpha**: Corrected proportion of adaptive substitutions
 - **p_value**: Fisher's exact test on the corrected contingency table
 - **Pwd**: Imputed count of weakly deleterious nonsynonymous polymorphisms
-- **Pn_neutral**: Nonsynonymous polymorphisms after removing imputed SDMs
+- **Pn_neutral**: Nonsynonymous polymorphisms after removing imputed slightly deleterious mutations
 - **Dn, Ds, Pn, Ps**: Raw counts
 - **cutoff**: The DAF cutoff used
 
@@ -151,11 +151,11 @@ Comparison with Other Methods
    * - Asymptotic MK
      - Curve fitting across frequency spectrum
      - Genome-wide analyses with many polymorphisms
-   * - fwwMKT
-     - Discards low-frequency variants
+   * - Standard MK with frequency filtering
+     - Discards low-frequency polymorphisms (e.g., ``--min-freq``, ``--no-singletons``)
      - Simple correction, but loses data
    * - **Imputed MK**
-     - Imputes SDM count from synonymous spectrum
+     - Imputes slightly deleterious count from synonymous spectrum
      - Gene-level analyses; maximizing statistical power
 
 The imputed test is particularly useful when:
@@ -183,11 +183,11 @@ When to Use the Imputed MK Test
 Interpreting Results
 --------------------
 
-- **alpha > 0**: Evidence for positive selection (proportion of adaptive substitutions)
-- **alpha ~ 0**: Consistent with neutral evolution
-- **alpha < 0**: Unusual; may indicate model misspecification
+- **α > 0**: Evidence for positive selection (proportion of adaptive substitutions)
+- **α ≈ 0**: Consistent with neutral evolution
+- **α < 0**: Excess of nonsynonymous polymorphism relative to divergence, suggesting segregating weakly deleterious mutations remain even after correction
 - **Pwd > 0**: Low-frequency nonsynonymous excess detected and corrected
-- **Pwd = 0**: No evidence of segregating slightly deleterious mutations (or all polymorphisms are high-frequency)
+- **Pwd = 0**: No evidence for segregating slightly deleterious mutations (or all polymorphisms are high-frequency)
 
 Choosing the DAF Cutoff
 -----------------------
