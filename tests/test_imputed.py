@@ -6,6 +6,7 @@ import pytest
 
 from mkado.analysis.asymptotic import PolymorphismData, extract_polymorphism_data
 from mkado.analysis.imputed import ImputedMKResult, imputed_mk_test, imputed_mk_test_multi
+from mkado.io.output import OutputFormat, format_result
 
 
 class TestImputedMKTest:
@@ -360,6 +361,34 @@ class TestImputedMKResult:
         assert d["d"] == 0.3
         assert d["b"] == 0.2
         assert d["f"] == 0.5
+
+    def test_format_tsv(self) -> None:
+        """Test TSV output formatting via format_result."""
+        result = ImputedMKResult(
+            alpha=0.52,
+            p_value=0.03,
+            pn_neutral=6.0,
+            pwd=4.0,
+            dn=7,
+            ds=5,
+            pn_total=10,
+            ps_total=9,
+            cutoff=0.15,
+        )
+
+        tsv = format_result(result, OutputFormat.TSV)
+        header, values = tsv.split("\n")
+
+        assert "Dn\tDs\tPn\tPs\tPwd\tPn_neutral\talpha\tp_value\tcutoff" == header
+        fields = values.split("\t")
+        assert fields[0] == "7"   # Dn
+        assert fields[1] == "5"   # Ds
+        assert fields[2] == "10"  # Pn
+        assert fields[3] == "9"   # Ps
+        assert fields[4] == "4.00"  # Pwd
+        assert fields[5] == "6.00"  # Pn_neutral
+        assert fields[6] == "0.520000"  # alpha
+        assert fields[8] == "0.15"  # cutoff
 
 
 class TestImputedMKIntegration:
