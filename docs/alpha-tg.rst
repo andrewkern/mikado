@@ -82,6 +82,9 @@ Different methods for estimating alpha correct for different biases:
    * - Simple mean α
      - Nothing
      - Never recommended for multi-gene analyses
+   * - Imputed MK
+     - Slightly deleterious mutations (by imputation)
+     - Gene-level analyses; maximizing power with limited data
    * - **α_TG**
      - Sample size heterogeneity
      - Comparing species with little slightly deleterious load

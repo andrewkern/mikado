@@ -13,6 +13,7 @@ Features
 - **Standard MK test**: Classic 2x2 contingency table with Fisher's exact test
 - **Polarized MK test**: Uses a third outgroup to assign mutations to lineages
 - **Asymptotic MK test**: Frequency-bin alpha estimates with exponential extrapolation (`Messer & Petrov 2013`_)
+- **Imputed MK test**: Corrects for slightly deleterious mutations by imputation (`Murga-Moreno et al. 2022`_)
 - **Tarone-Greenland α_TG**: Weighted multi-gene estimator (`Stoletzki & Eyre-Walker 2011`_)
 - **Batch processing**: Process multiple genes with parallel execution
 - **Volcano plots**: Visualize batch results with publication-ready volcano plots
@@ -40,6 +41,7 @@ Quick Example
    tutorial
    batch-workflow
    asymptotic
+   imputed
    alpha-tg
    dos
    file-formats
@@ -53,4 +55,5 @@ Indices and tables
 * :ref:`search`
 
 .. _Messer & Petrov 2013: https://doi.org/10.1073/pnas.1220835110
+.. _Murga-Moreno et al. 2022: https://doi.org/10.1093/g3journal/jkac206
 .. _Stoletzki & Eyre-Walker 2011: https://doi.org/10.1093/molbev/msq249
