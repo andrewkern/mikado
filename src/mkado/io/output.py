@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from mkado.analysis.alpha_tg import AlphaTGResult
     from mkado.analysis.asymptotic import AsymptoticMKResult
+    from mkado.analysis.imputed import ImputedMKResult
     from mkado.analysis.mk_test import MKResult
     from mkado.analysis.polarized import PolarizedMKResult
 
@@ -22,7 +23,7 @@ class OutputFormat(Enum):
 
 
 def format_result(
-    result: MKResult | PolarizedMKResult | AsymptoticMKResult | AlphaTGResult,
+    result: MKResult | PolarizedMKResult | AsymptoticMKResult | AlphaTGResult | ImputedMKResult,
     format: OutputFormat = OutputFormat.PRETTY,
 ) -> str:
     """Format MK test results for output.
@@ -47,14 +48,25 @@ def format_result(
         raise ValueError(f"Unknown format: {format}")
 
 
-def _format_tsv(result: MKResult | PolarizedMKResult | AsymptoticMKResult | AlphaTGResult) -> str:
+def _format_tsv(result: MKResult | PolarizedMKResult | AsymptoticMKResult | AlphaTGResult | ImputedMKResult) -> str:
     """Format results as tab-separated values."""
     from mkado.analysis.alpha_tg import AlphaTGResult
     from mkado.analysis.asymptotic import AsymptoticMKResult
+    from mkado.analysis.imputed import ImputedMKResult
     from mkado.analysis.mk_test import MKResult
     from mkado.analysis.polarized import PolarizedMKResult
 
-    if isinstance(result, MKResult):
+    if isinstance(result, ImputedMKResult):
+        alpha_str = f"{result.alpha:.6f}" if result.alpha is not None else "NA"
+        header = "Dn\tDs\tPn\tPs\tPwd\tPn_neutral\talpha\tp_value\tcutoff"
+        values = (
+            f"{result.dn}\t{result.ds}\t{result.pn_total}\t{result.ps_total}\t"
+            f"{result.pwd:.2f}\t{result.pn_neutral:.2f}\t{alpha_str}\t"
+            f"{result.p_value:.6g}\t{result.cutoff}"
+        )
+        return f"{header}\n{values}"
+
+    elif isinstance(result, MKResult):
         header = "Dn\tDs\tPn\tPs\tp_value\tNI\talpha\tDoS"
         ni_str = f"{result.ni:.6f}" if result.ni is not None else "NA"
         alpha_str = f"{result.alpha:.6f}" if result.alpha is not None else "NA"

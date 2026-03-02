@@ -65,6 +65,14 @@ Asymptotic MK Test
    :undoc-members:
    :show-inheritance:
 
+Imputed MK Test
+^^^^^^^^^^^^^^^^
+
+.. automodule:: mkado.analysis.imputed
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Polarized MK Test
 ^^^^^^^^^^^^^^^^^
 

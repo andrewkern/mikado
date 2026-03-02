@@ -262,6 +262,14 @@ def test(
             help="Use asymptotic MK test (accounts for slightly deleterious mutations)",
         ),
     ] = False,
+    use_imputed: Annotated[
+        bool,
+        typer.Option(
+            "--imputed",
+            help="Use imputed MK test (Murga-Moreno et al. 2022). "
+            "Uses --min-freq as DAF cutoff (default 0.15 if not set).",
+        ),
+    ] = False,
     # === Asymptotic options ===
     bins: Annotated[
         int,
@@ -357,6 +365,21 @@ def test(
         )
         raise typer.Exit(1)
 
+    if use_imputed and use_asymptotic:
+        typer.echo(
+            "Error: --imputed and --asymptotic are mutually exclusive.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    if use_imputed and no_singletons:
+        typer.echo(
+            "Error: --no-singletons cannot be used with --imputed. "
+            "The imputed test needs low-frequency variants.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
     if no_singletons and min_freq > 0.0:
         typer.echo(
             "Error: --no-singletons and --min-freq cannot be used together. "
@@ -364,6 +387,9 @@ def test(
             err=True,
         )
         raise typer.Exit(1)
+
+    # Resolve imputed cutoff from --min-freq (default 0.15)
+    imputed_cutoff = min_freq if (use_imputed and min_freq > 0.0) else 0.15
 
     fmt = OutputFormat(output_format)
 
@@ -434,6 +460,17 @@ def test(
                 bootstrap_replicates=bootstrap,
                 pool_polymorphisms=pool_polymorphisms,
             )
+        elif use_imputed:
+            from mkado.analysis.asymptotic import extract_polymorphism_data
+            from mkado.analysis.imputed import imputed_mk_test
+
+            poly_data = extract_polymorphism_data(
+                ingroup=ingroup_seqs,
+                outgroup=outgroup_seqs,
+                reading_frame=reading_frame,
+                pool_polymorphisms=pool_polymorphisms,
+            )
+            result = imputed_mk_test(poly_data, cutoff=imputed_cutoff)
         elif polarize_match:
             outgroup2_seqs = all_seqs.filter_by_name(polarize_match)
             if len(outgroup2_seqs) == 0:
@@ -499,6 +536,17 @@ def test(
                 bootstrap_replicates=bootstrap,
                 pool_polymorphisms=pool_polymorphisms,
             )
+        elif use_imputed:
+            from mkado.analysis.asymptotic import extract_polymorphism_data
+            from mkado.analysis.imputed import imputed_mk_test
+
+            poly_data = extract_polymorphism_data(
+                ingroup=fasta,
+                outgroup=outgroup_file,
+                reading_frame=reading_frame,
+                pool_polymorphisms=pool_polymorphisms,
+            )
+            result = imputed_mk_test(poly_data, cutoff=imputed_cutoff)
         elif polarize_file:
             result = polarized_mk_test(
                 ingroup=fasta,
@@ -606,6 +654,14 @@ def batch(
         typer.Option(
             "--alpha-tg",
             help="Compute α_TG (Stoletzki & Eyre-Walker 2011 weighted estimator)",
+        ),
+    ] = False,
+    use_imputed: Annotated[
+        bool,
+        typer.Option(
+            "--imputed",
+            help="Use imputed MK test (Murga-Moreno et al. 2022). "
+            "Uses --min-freq as DAF cutoff (default 0.15 if not set).",
         ),
     ] = False,
     # === Asymptotic options ===
@@ -731,6 +787,28 @@ def batch(
         )
         raise typer.Exit(1)
 
+    if use_imputed and use_asymptotic:
+        typer.echo(
+            "Error: --imputed and --asymptotic are mutually exclusive.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    if use_imputed and alpha_tg:
+        typer.echo(
+            "Error: --imputed and --alpha-tg are mutually exclusive.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    if use_imputed and no_singletons:
+        typer.echo(
+            "Error: --no-singletons cannot be used with --imputed. "
+            "The imputed test needs low-frequency variants.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
     if no_singletons and min_freq > 0.0:
         typer.echo(
             "Error: --no-singletons and --min-freq cannot be used together. "
@@ -738,6 +816,9 @@ def batch(
             err=True,
         )
         raise typer.Exit(1)
+
+    # Resolve imputed cutoff from --min-freq (default 0.15)
+    imputed_cutoff = min_freq if (use_imputed and min_freq > 0.0) else 0.15
 
     fmt = OutputFormat(output_format)
 
@@ -787,12 +868,15 @@ def batch(
                 polarize_match=polarize_match,
                 reading_frame=reading_frame,
                 use_asymptotic=use_asymptotic,
+                use_imputed=use_imputed and not aggregate,
+                imputed_cutoff=imputed_cutoff,
                 bins=bins,
                 bootstrap=bootstrap,
                 pool_polymorphisms=pool_polymorphisms,
                 min_freq=min_freq,
                 no_singletons=no_singletons,
-                extract_only=(use_asymptotic and aggregate) or alpha_tg,
+                extract_only=(use_asymptotic and aggregate) or alpha_tg
+                or (use_imputed and aggregate),
             )
             for f in alignment_files
         ]
@@ -856,6 +940,32 @@ def batch(
                         typer.echo(f"Asymptotic plot saved to {plot_asymptotic}", err=True)
                     except ValueError as e:
                         typer.echo(f"Could not generate plot: {e}", err=True)
+            else:
+                typer.echo("No valid gene data extracted", err=True)
+            return
+
+        # Aggregated imputed mode
+        if use_imputed and aggregate:
+            from mkado.analysis.asymptotic import PolymorphismData
+            from mkado.analysis.imputed import imputed_mk_test_multi
+
+            worker_results, warnings = run_parallel_batch(
+                tasks, num_workers, "Extracting polymorphism data"
+            )
+
+            for warning in warnings:
+                typer.echo(warning, err=True)
+
+            gene_data_list: list[PolymorphismData] = [
+                r.result for r in worker_results if r.result is not None
+            ]
+
+            if gene_data_list:
+                result = imputed_mk_test_multi(
+                    gene_data=gene_data_list,
+                    cutoff=imputed_cutoff,
+                )
+                typer.echo(format_result(result, fmt))
             else:
                 typer.echo("No valid gene data extracted", err=True)
             return
@@ -936,12 +1046,15 @@ def batch(
                     outgroup2_file=outgroup2_file,
                     reading_frame=reading_frame,
                     use_asymptotic=use_asymptotic,
+                    use_imputed=use_imputed and not aggregate,
+                    imputed_cutoff=imputed_cutoff,
                     bins=bins,
                     bootstrap=bootstrap,
                     pool_polymorphisms=pool_polymorphisms,
                     min_freq=min_freq,
                     no_singletons=no_singletons,
-                    extract_only=(use_asymptotic and aggregate) or alpha_tg,
+                    extract_only=(use_asymptotic and aggregate) or alpha_tg
+                    or (use_imputed and aggregate),
                 )
             )
 
@@ -1011,6 +1124,32 @@ def batch(
                         typer.echo(f"Asymptotic plot saved to {plot_asymptotic}", err=True)
                     except ValueError as e:
                         typer.echo(f"Could not generate plot: {e}", err=True)
+            else:
+                typer.echo("No valid gene data extracted", err=True)
+            return
+
+        # Aggregated imputed mode
+        if use_imputed and aggregate:
+            from mkado.analysis.asymptotic import PolymorphismData
+            from mkado.analysis.imputed import imputed_mk_test_multi
+
+            worker_results, warnings = run_parallel_batch(
+                tasks, num_workers, "Extracting polymorphism data"
+            )
+
+            for warning in warnings:
+                typer.echo(warning, err=True)
+
+            gene_data_list: list[PolymorphismData] = [
+                r.result for r in worker_results if r.result is not None
+            ]
+
+            if gene_data_list:
+                result = imputed_mk_test_multi(
+                    gene_data=gene_data_list,
+                    cutoff=imputed_cutoff,
+                )
+                typer.echo(format_result(result, fmt))
             else:
                 typer.echo("No valid gene data extracted", err=True)
             return
