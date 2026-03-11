@@ -1294,7 +1294,7 @@ def vcf(
     ],
     ref: Annotated[
         Path,
-        typer.Option("--ref", help="Reference FASTA file, plain or bgzipped (must be indexed)"),
+        typer.Option("--ref", help="Reference FASTA file, plain or bgzipped (must be faidx-indexed)"),
     ],
     gff: Annotated[
         Path,
@@ -1387,7 +1387,7 @@ def vcf(
     REQUIREMENTS:
 
     - Ingroup VCF: multi-sample population VCF (bgzipped+tabix recommended)
-    - Reference FASTA: genome assembly the VCF was called against (plain or bgzipped, indexed)
+    - Reference FASTA: genome assembly the VCF was called against (plain or bgzipped, faidx-indexed)
     - GFF3 annotation: gene models with CDS features (plain or gzipped)
     - Outgroup VCF: single-sample VCF of outgroup (for divergence)
 
