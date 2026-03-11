@@ -48,6 +48,13 @@ Quick Example
    file-formats
    api
 
+Citation
+--------
+
+If you use MKado in your research, please cite:
+
+   Rivera-Colón, A. G., Rehmann, C. T., & Kern, A. D. (2026). MKado: a toolkit for McDonald-Kreitman tests of natural selection. *bioRxiv*. https://doi.org/10.64898/2026.03.02.709122
+
 Indices and tables
 ==================
 
