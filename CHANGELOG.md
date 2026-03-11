@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0] - 2026-03-10
+
+### Added
+- Alternate genetic code support (`--code-table`) for 24 NCBI genetic code tables
+- Name-based code selection (e.g. `--code-table vertebrate-mito`)
+- `mkado codes` command to list available genetic code tables
+
 ## [0.2.0] - 2026-03-01
 
 ### Added
@@ -34,6 +41,7 @@
 
 - Initial release
 
+[0.3.0]: https://github.com/kr-colab/mkado/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/kr-colab/mkado/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/kr-colab/mkado/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/kr-colab/mkado/compare/v0.1.0...v0.1.1

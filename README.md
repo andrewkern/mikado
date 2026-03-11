@@ -12,6 +12,7 @@ A modern Python implementation of the McDonald-Kreitman test toolkit for detecti
 - **Polarized MK test**: Uses a third outgroup to assign mutations to lineages
 - **Asymptotic MK test**: Frequency-bin α estimates with exponential extrapolation (Messer & Petrov 2013)
 - **Tarone-Greenland α_TG**: Weighted multi-gene estimator that corrects for sample size heterogeneity (Stoletzki & Eyre-Walker 2011)
+- **Alternate genetic codes**: 24 NCBI genetic code tables (mitochondrial, plastid, etc.) selectable by name
 - **Batch processing**: Process multiple genes with parallel execution and Benjamini-Hochberg correction for multiple testing
 - **Volcano plots**: Visualize batch results with publication-ready volcano plots
 - **Multiple output formats**: Pretty-print, TSV, and JSON
@@ -101,6 +102,7 @@ mkado test FASTA [OUTGROUP_FILE] [OPTIONS]
 | `--polarize-match` | | Second outgroup pattern (combined mode) |
 | `--bins` | `-b` | Frequency bins for asymptotic test (default: 10) |
 | `--plot-asymptotic` | | Generate alpha(x) plot for asymptotic test (PNG, PDF, or SVG) |
+| `--code-table` | | Genetic code (e.g. `vertebrate-mito`, or NCBI ID) |
 | `--format` | `-f` | Output format: pretty, tsv, json |
 | `--reading-frame` | `-r` | Reading frame 1-3 (default: 1) |
 
@@ -138,6 +140,7 @@ mkado batch DIRECTORY [OPTIONS]
 | `--pattern` | | File glob pattern (default: auto-detect *.fa, *.fasta, *.fna) |
 | `--workers` | `-w` | Parallel workers (0=auto, 1=sequential) |
 | `--bins` | `-b` | Frequency bins for asymptotic test |
+| `--code-table` | | Genetic code (e.g. `vertebrate-mito`, or NCBI ID) |
 | `--format` | `-f` | Output format: pretty, tsv, json |
 | `--volcano` | | Generate volcano plot (PNG, PDF, or SVG) |
 | `--plot-asymptotic` | | Generate alpha(x) plot for aggregated asymptotic test |
@@ -160,6 +163,14 @@ mkado batch alignments/ -i "dmel" -o "dsim" -a --plot-asymptotic alpha_fit.png
 
 # Separate files mode
 mkado batch genes/ --ingroup-pattern "*_in.fa" --outgroup-pattern "*_out.fa"
+```
+
+### `mkado codes`
+
+List available genetic code tables.
+
+```bash
+mkado codes
 ```
 
 ### `mkado info`
