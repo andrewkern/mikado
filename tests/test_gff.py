@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gzip
 import textwrap
 from pathlib import Path
 
@@ -145,3 +146,19 @@ def test_comments_and_blank_lines(tmp_path: Path):
     gff_path.write_text(content)
     regions = parse_gff3(gff_path)
     assert len(regions) == 1
+
+
+def test_parse_gzipped_gff3(tmp_path: Path):
+    """GFF3 files compressed with gzip should be parsed correctly."""
+    content = textwrap.dedent("""\
+        ##gff-version 3
+        chr1\t.\tgene\t1\t9\t.\t+\t.\tID=gene1;Name=GzGene
+        chr1\t.\tmRNA\t1\t9\t.\t+\t.\tID=tx1;Parent=gene1
+        chr1\t.\tCDS\t1\t9\t.\t+\t0\tID=cds1;Parent=tx1
+    """)
+    gff_path = tmp_path / "test.gff3.gz"
+    with gzip.open(gff_path, "wt") as f:
+        f.write(content)
+    regions = parse_gff3(gff_path)
+    assert len(regions) == 1
+    assert regions[0].gene_id == "GzGene"

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gzip
 from collections import defaultdict
 from pathlib import Path
 
@@ -48,7 +49,8 @@ def parse_gff3(
     # Track mRNA/transcript features
     transcript_info: dict[str, dict] = {}
 
-    with open(path) as f:
+    opener = gzip.open if path.suffix == ".gz" else open
+    with opener(path, "rt") as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith("#"):
