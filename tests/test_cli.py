@@ -308,3 +308,105 @@ ATGGTGATGATGATGATG
 
         # Should succeed
         assert result.exit_code == 0
+
+
+class TestCodeTable:
+    """Tests for --code-table option and mkado codes command."""
+
+    def test_codes_command(self) -> None:
+        """Test that mkado codes lists available tables."""
+        result = runner.invoke(app, ["codes"])
+        assert result.exit_code == 0
+        assert "Standard" in result.output
+        assert "Vertebrate Mitochondrial" in result.output
+        assert "vertebrate-mito" in result.output
+
+    def test_code_table_by_name(self, tmp_path: Path) -> None:
+        """Test --code-table accepts a name alias."""
+        fasta = tmp_path / "test.fa"
+        fasta.write_text(""">speciesA_1
+ATGATGATGATGATGATG
+>speciesA_2
+ATGCTGATGATGATGATG
+>speciesB_1
+ATGGTGATGATGATGATG
+""")
+
+        result = runner.invoke(
+            app,
+            [
+                "test",
+                str(fasta),
+                "-i", "speciesA",
+                "-o", "speciesB",
+                "--code-table", "vertebrate-mito",
+            ],
+        )
+        assert result.exit_code == 0
+
+    def test_code_table_by_id(self, tmp_path: Path) -> None:
+        """Test --code-table accepts a numeric ID."""
+        fasta = tmp_path / "test.fa"
+        fasta.write_text(""">speciesA_1
+ATGATGATGATGATGATG
+>speciesA_2
+ATGCTGATGATGATGATG
+>speciesB_1
+ATGGTGATGATGATGATG
+""")
+
+        result = runner.invoke(
+            app,
+            [
+                "test",
+                str(fasta),
+                "-i", "speciesA",
+                "-o", "speciesB",
+                "--code-table", "2",
+            ],
+        )
+        assert result.exit_code == 0
+
+    def test_code_table_unknown_name_error(self, tmp_path: Path) -> None:
+        """Test --code-table rejects an unknown name."""
+        fasta = tmp_path / "test.fa"
+        fasta.write_text(""">speciesA_1
+ATGATGATG
+>speciesB_1
+ATGGTGATG
+""")
+
+        result = runner.invoke(
+            app,
+            [
+                "test",
+                str(fasta),
+                "-i", "speciesA",
+                "-o", "speciesB",
+                "--code-table", "not-a-real-code",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "Unknown genetic code" in result.output
+
+    def test_code_table_unknown_id_error(self, tmp_path: Path) -> None:
+        """Test --code-table rejects an unknown numeric ID."""
+        fasta = tmp_path / "test.fa"
+        fasta.write_text(""">speciesA_1
+ATGATGATG
+>speciesB_1
+ATGGTGATG
+""")
+
+        result = runner.invoke(
+            app,
+            [
+                "test",
+                str(fasta),
+                "-i", "speciesA",
+                "-o", "speciesB",
+                "--code-table", "99",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "Unknown genetic code" in result.output

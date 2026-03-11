@@ -6,10 +6,10 @@ from functools import lru_cache
 from typing import TYPE_CHECKING
 
 from mkado.data.genetic_codes import (
-    CODON_PATHS,
     STANDARD_CODE,
     _build_code_table,
     _compute_codon_paths,
+    get_codon_paths,
 )
 
 if TYPE_CHECKING:
@@ -29,6 +29,7 @@ class GeneticCode:
 
         Args:
             code: Dict mapping codons to single-letter amino acids.
+                  Must be a complete mapping of all 64 codons.
                   Uses standard code if neither code nor table_id is provided.
             table_id: NCBI genetic code table ID (1-33). If provided, overrides code.
         """
@@ -42,9 +43,9 @@ class GeneticCode:
             self.code = STANDARD_CODE
             self._table_id = 1
 
-        # Use pre-computed paths for standard code, compute for others
-        if self.code is STANDARD_CODE or self._table_id == 1:
-            self._paths = CODON_PATHS
+        # Use cached paths when constructed by table_id; compute for custom dicts
+        if self._table_id is not None:
+            self._paths = get_codon_paths(self._table_id)
         else:
             self._paths = _compute_codon_paths(self.code)
 

@@ -153,15 +153,15 @@ def resolve_code_table(name_or_id: str) -> int:
     # Try numeric first
     try:
         table_id = int(name_or_id)
+    except ValueError:
+        pass  # Not numeric; fall through to alias lookup
+    else:
         if table_id == 1 or table_id in _CODE_DIFFS:
             return table_id
         raise ValueError(
             f"Unknown genetic code table {table_id}. "
             f"Run 'mkado codes' to see available tables."
         )
-    except ValueError as e:
-        if "Unknown genetic code" in str(e):
-            raise
 
     # Try name alias
     key = name_or_id.lower().strip()
@@ -334,3 +334,20 @@ def _compute_codon_paths(
 
 # Pre-computed codon paths for the standard code
 CODON_PATHS = _compute_codon_paths()
+
+# Cache for non-standard code paths, keyed by table_id
+_codon_paths_cache: dict[int, dict[tuple[str, str], list[tuple[str, int]]]] = {}
+
+
+def get_codon_paths(table_id: int) -> dict[tuple[str, str], list[tuple[str, int]]]:
+    """Get codon paths for a given table ID, with caching.
+
+    Returns the pre-computed CODON_PATHS for the standard code (table 1),
+    and caches results for other tables to avoid recomputation.
+    """
+    if table_id == 1:
+        return CODON_PATHS
+    if table_id not in _codon_paths_cache:
+        code = _build_code_table(table_id)
+        _codon_paths_cache[table_id] = _compute_codon_paths(code)
+    return _codon_paths_cache[table_id]
