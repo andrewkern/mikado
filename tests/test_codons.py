@@ -120,3 +120,84 @@ class TestGeneticCode:
 
         # Two differences
         assert code.is_synonymous_change("AAA", "GGG") is None
+
+
+class TestGeneticCodeTables:
+    """Tests for alternate genetic code table support."""
+
+    def test_table_id_standard(self) -> None:
+        """Standard code via table_id gives same results as default."""
+        default = GeneticCode()
+        standard = GeneticCode(table_id=1)
+        assert default.translate("ATG") == standard.translate("ATG")
+        assert default.translate("TGA") == standard.translate("TGA")
+
+    def test_table_id_vertebrate_mito(self) -> None:
+        """Vertebrate mitochondrial code has expected differences."""
+        code = GeneticCode(table_id=2)
+        assert code.translate("AGA") == "*"  # Stop, not Arg
+        assert code.translate("AGG") == "*"  # Stop, not Arg
+        assert code.translate("ATA") == "M"  # Met, not Ile
+        assert code.translate("TGA") == "W"  # Trp, not Stop
+
+    def test_table_id_invertebrate_mito(self) -> None:
+        """Invertebrate mitochondrial code has expected differences."""
+        code = GeneticCode(table_id=5)
+        assert code.translate("AGA") == "S"  # Ser, not Arg
+        assert code.translate("TGA") == "W"  # Trp, not Stop
+
+    def test_paths_differ_between_codes(self) -> None:
+        """Paths should differ when amino acid assignments differ."""
+        std = GeneticCode()
+        mito = GeneticCode(table_id=2)
+        # ATG->AGA: in standard, AGA=R so this is R; in mito, AGA=* (stop)
+        std_path = std.get_path("ATG", "AGA")
+        mito_path = mito.get_path("ATG", "AGA")
+        assert std_path != mito_path
+
+    def test_codon_paths_cached(self) -> None:
+        """Repeated construction with same table_id shares cached paths."""
+        code1 = GeneticCode(table_id=5)
+        code2 = GeneticCode(table_id=5)
+        assert code1._paths is code2._paths
+
+    def test_invalid_table_id(self) -> None:
+        """Invalid table ID raises ValueError."""
+        with pytest.raises(ValueError, match="Unknown genetic code"):
+            GeneticCode(table_id=99)
+
+
+class TestResolveCodeTable:
+    """Tests for resolve_code_table."""
+
+    def test_numeric_id(self) -> None:
+        from mkado.data.genetic_codes import resolve_code_table
+
+        assert resolve_code_table("1") == 1
+        assert resolve_code_table("2") == 2
+        assert resolve_code_table("5") == 5
+
+    def test_name_alias(self) -> None:
+        from mkado.data.genetic_codes import resolve_code_table
+
+        assert resolve_code_table("standard") == 1
+        assert resolve_code_table("vertebrate-mito") == 2
+        assert resolve_code_table("invertebrate-mito") == 5
+
+    def test_case_insensitive(self) -> None:
+        from mkado.data.genetic_codes import resolve_code_table
+
+        assert resolve_code_table("Vertebrate-Mito") == 2
+        assert resolve_code_table("STANDARD") == 1
+
+    def test_unknown_name_raises(self) -> None:
+        from mkado.data.genetic_codes import resolve_code_table
+
+        with pytest.raises(ValueError, match="Unknown genetic code"):
+            resolve_code_table("not-a-code")
+
+    def test_unknown_id_raises(self) -> None:
+        from mkado.data.genetic_codes import resolve_code_table
+
+        with pytest.raises(ValueError, match="Unknown genetic code"):
+            resolve_code_table("99")

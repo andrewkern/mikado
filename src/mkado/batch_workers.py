@@ -60,8 +60,17 @@ class BatchTask:
     no_singletons: bool = False
     """Exclude singletons (automatically calculate 1/n threshold)."""
 
+    use_imputed: bool = False
+    """Use imputed MK test instead of standard."""
+
+    imputed_cutoff: float = 0.15
+    """DAF cutoff for imputed MK test."""
+
     extract_only: bool = False
     """Only extract polymorphism data (for aggregated asymptotic mode)."""
+
+    code_table: int = 1
+    """NCBI genetic code table ID."""
 
 
 @dataclass
@@ -101,11 +110,14 @@ def process_gene(task: BatchTask) -> WorkerResult:
         asymptotic_mk_test,
         extract_polymorphism_data,
     )
+    from mkado.analysis.imputed import imputed_mk_test
     from mkado.analysis.mk_test import mk_test
     from mkado.analysis.polarized import polarized_mk_test
+    from mkado.core.codons import GeneticCode
     from mkado.core.sequences import SequenceSet
 
     gene_id = task.file_path.stem
+    genetic_code = GeneticCode(table_id=task.code_table) if task.code_table != 1 else None
 
     try:
         # Determine mode: combined file or separate files
@@ -145,6 +157,7 @@ def process_gene(task: BatchTask) -> WorkerResult:
                     pool_polymorphisms=task.pool_polymorphisms,
                     gene_id=gene_id,
                     min_frequency=min_freq,
+                    genetic_code=genetic_code,
                 )
                 return WorkerResult(gene_id=gene_id, result=result)
 
@@ -157,7 +170,21 @@ def process_gene(task: BatchTask) -> WorkerResult:
                     num_bins=task.bins,
                     bootstrap_replicates=task.bootstrap,
                     pool_polymorphisms=task.pool_polymorphisms,
+                    genetic_code=genetic_code,
                 )
+                return WorkerResult(gene_id=gene_id, result=result)
+
+            # Imputed mode
+            if task.use_imputed:
+                poly_data = extract_polymorphism_data(
+                    ingroup=ingroup_seqs,
+                    outgroup=outgroup_seqs,
+                    reading_frame=task.reading_frame,
+                    pool_polymorphisms=task.pool_polymorphisms,
+                    gene_id=gene_id,
+                    genetic_code=genetic_code,
+                )
+                result = imputed_mk_test(poly_data, cutoff=task.imputed_cutoff)
                 return WorkerResult(gene_id=gene_id, result=result)
 
             # Polarized mode
@@ -175,6 +202,7 @@ def process_gene(task: BatchTask) -> WorkerResult:
                     reading_frame=task.reading_frame,
                     pool_polymorphisms=task.pool_polymorphisms,
                     min_frequency=min_freq,
+                    genetic_code=genetic_code,
                 )
                 return WorkerResult(gene_id=gene_id, result=result)
 
@@ -185,6 +213,7 @@ def process_gene(task: BatchTask) -> WorkerResult:
                 reading_frame=task.reading_frame,
                 pool_polymorphisms=task.pool_polymorphisms,
                 min_frequency=min_freq,
+                genetic_code=genetic_code,
             )
             return WorkerResult(gene_id=gene_id, result=result)
 
@@ -219,6 +248,7 @@ def process_gene(task: BatchTask) -> WorkerResult:
                     pool_polymorphisms=task.pool_polymorphisms,
                     gene_id=gene_id,
                     min_frequency=min_freq,
+                    genetic_code=genetic_code,
                 )
                 return WorkerResult(gene_id=gene_id, result=result)
 
@@ -231,7 +261,21 @@ def process_gene(task: BatchTask) -> WorkerResult:
                     num_bins=task.bins,
                     bootstrap_replicates=task.bootstrap,
                     pool_polymorphisms=task.pool_polymorphisms,
+                    genetic_code=genetic_code,
                 )
+                return WorkerResult(gene_id=gene_id, result=result)
+
+            # Imputed mode
+            if task.use_imputed:
+                poly_data = extract_polymorphism_data(
+                    ingroup=task.file_path,
+                    outgroup=task.outgroup_file,
+                    reading_frame=task.reading_frame,
+                    pool_polymorphisms=task.pool_polymorphisms,
+                    gene_id=gene_id,
+                    genetic_code=genetic_code,
+                )
+                result = imputed_mk_test(poly_data, cutoff=task.imputed_cutoff)
                 return WorkerResult(gene_id=gene_id, result=result)
 
             # Polarized mode
@@ -243,6 +287,7 @@ def process_gene(task: BatchTask) -> WorkerResult:
                     reading_frame=task.reading_frame,
                     pool_polymorphisms=task.pool_polymorphisms,
                     min_frequency=min_freq,
+                    genetic_code=genetic_code,
                 )
                 return WorkerResult(gene_id=gene_id, result=result)
 
@@ -253,6 +298,7 @@ def process_gene(task: BatchTask) -> WorkerResult:
                 reading_frame=task.reading_frame,
                 pool_polymorphisms=task.pool_polymorphisms,
                 min_frequency=min_freq,
+                genetic_code=genetic_code,
             )
             return WorkerResult(gene_id=gene_id, result=result)
 

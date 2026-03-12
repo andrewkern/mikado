@@ -198,6 +198,9 @@ Comparison with Other Methods
    * - Standard α
      - Nothing
      - Quick assessment; comparing specific genes
+   * - Imputed MK
+     - Weakly deleterious mutations (by imputation)
+     - Gene-level analyses; maximizing power with limited data
    * - α_TG
      - Sample size heterogeneity across genes
      - Multi-gene analysis with minimal deleterious load

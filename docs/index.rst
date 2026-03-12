@@ -14,7 +14,9 @@ Features
 - **Polarized MK test**: Uses a third outgroup to assign mutations to lineages
 - **Asymptotic MK test**: Frequency-bin alpha estimates with exponential extrapolation (`Messer & Petrov 2013`_)
 - **DFE-based α estimation**: Distribution of Fitness Effects models following GRAPES (`Galtier 2016`_)
+- **Imputed MK test**: Corrects for slightly deleterious mutations by imputation (`Murga-Moreno et al. 2022`_)
 - **Tarone-Greenland α_TG**: Weighted multi-gene estimator (`Stoletzki & Eyre-Walker 2011`_)
+- **Alternate genetic codes**: Support for 24 NCBI genetic code tables (mitochondrial, plastid, etc.)
 - **Batch processing**: Process multiple genes with parallel execution
 - **Volcano plots**: Visualize batch results with publication-ready volcano plots
 - **Multiple output formats**: Pretty-print, TSV, and JSON
@@ -42,10 +44,18 @@ Quick Example
    batch-workflow
    asymptotic
    dfe
+   imputed
    alpha-tg
    dos
    file-formats
    api
+
+Citation
+--------
+
+If you use MKado in your research, please cite:
+
+   Rivera-Colón, A. G., Rehmann, C. T., & Kern, A. D. (2026). MKado: a toolkit for McDonald-Kreitman tests of natural selection. *bioRxiv*. https://doi.org/10.64898/2026.03.02.709122
 
 Indices and tables
 ==================
@@ -56,4 +66,5 @@ Indices and tables
 
 .. _Messer & Petrov 2013: https://doi.org/10.1073/pnas.1220835110
 .. _Galtier 2016: https://doi.org/10.1371/journal.pgen.1005774
+.. _Murga-Moreno et al. 2022: https://doi.org/10.1093/g3journal/jkac206
 .. _Stoletzki & Eyre-Walker 2011: https://doi.org/10.1093/molbev/msq249

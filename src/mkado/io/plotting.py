@@ -130,7 +130,7 @@ def create_volcano_plot(
     # Labels and title
     ax.set_xlabel("-log$_{10}$(NI)", fontsize=12)
     ax.set_ylabel("-log$_{10}$(p-value)", fontsize=12)
-    ax.set_title("Volcano Plot: McDonald-Kreitman Test Results", fontsize=14, fontweight="bold")
+
 
     # Add legend
     ax.legend(loc="upper right", framealpha=0.9)

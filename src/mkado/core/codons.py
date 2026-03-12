@@ -5,7 +5,12 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import TYPE_CHECKING
 
-from mkado.data.genetic_codes import CODON_PATHS, STANDARD_CODE
+from mkado.data.genetic_codes import (
+    STANDARD_CODE,
+    _build_code_table,
+    _compute_codon_paths,
+    get_codon_paths,
+)
 
 if TYPE_CHECKING:
     pass
@@ -14,15 +19,35 @@ if TYPE_CHECKING:
 class GeneticCode:
     """Represents a genetic code for translation and codon path computation."""
 
-    def __init__(self, code: dict[str, str] | None = None):
+    def __init__(
+        self,
+        code: dict[str, str] | None = None,
+        *,
+        table_id: int | None = None,
+    ):
         """Initialize with a codon-to-amino-acid mapping.
 
         Args:
             code: Dict mapping codons to single-letter amino acids.
-                  Uses standard code if not provided.
+                  Must be a complete mapping of all 64 codons.
+                  Uses standard code if neither code nor table_id is provided.
+            table_id: NCBI genetic code table ID (1-33). If provided, overrides code.
         """
-        self.code = code if code is not None else STANDARD_CODE
-        self._paths = CODON_PATHS
+        if table_id is not None:
+            self.code = _build_code_table(table_id)
+            self._table_id = table_id
+        elif code is not None:
+            self.code = code
+            self._table_id = None
+        else:
+            self.code = STANDARD_CODE
+            self._table_id = 1
+
+        # Use cached paths when constructed by table_id; compute for custom dicts
+        if self._table_id is not None:
+            self._paths = get_codon_paths(self._table_id)
+        else:
+            self._paths = _compute_codon_paths(self.code)
 
     @lru_cache(maxsize=4096)
     def translate(self, codon: str) -> str:

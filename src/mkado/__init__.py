@@ -1,6 +1,6 @@
 """Mikado: Modern Python implementation of the McDonald-Kreitman test toolkit."""
 
-__version__ = "0.1.0"
+__version__ = "0.3.0"
 
 from mkado.core.sequences import Sequence, SequenceSet
 from mkado.core.codons import GeneticCode
