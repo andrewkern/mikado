@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import gzip
+import logging
 from collections import defaultdict
 from pathlib import Path
 
 from mkado.core.cds import CdsRegion
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_attributes(attr_string: str) -> dict[str, str]:
@@ -117,6 +120,8 @@ def parse_gff3(
                 transcript_to_gene[tid] = tid
 
     results: list[CdsRegion] = []
+    skipped_no_cds = 0
+    skipped_invalid_frame = 0
 
     for gene_id, tids in gene_transcripts.items():
         # Filter by gene IDs if specified
@@ -136,10 +141,14 @@ def parse_gff3(
                 best_tid = tid
 
         if best_tid is None:
+            skipped_no_cds += 1
+            logger.debug("GFF3: skipping %s (no transcript with CDS features)", gene_id)
             continue
 
         cds_list = cds_by_transcript[best_tid]
         if not cds_list:
+            skipped_no_cds += 1
+            logger.debug("GFF3: skipping %s (empty CDS list)", gene_id)
             continue
 
         exons = [(c["start"], c["end"]) for c in cds_list]
@@ -166,8 +175,27 @@ def parse_gff3(
 
         # Skip genes where CDS length is not divisible by 3
         if not region.is_valid():
+            skipped_invalid_frame += 1
+            logger.debug(
+                "GFF3: skipping %s (CDS length %d not divisible by 3)",
+                gene_id,
+                region.cds_length(),
+            )
             continue
 
         results.append(region)
+
+    n_skipped = skipped_no_cds + skipped_invalid_frame
+    if n_skipped > 0:
+        parts = []
+        if skipped_no_cds > 0:
+            parts.append(f"{skipped_no_cds} with no CDS features")
+        if skipped_invalid_frame > 0:
+            parts.append(f"{skipped_invalid_frame} with CDS length not divisible by 3")
+        logger.warning(
+            "GFF3: %d genes skipped — %s",
+            n_skipped,
+            "; ".join(parts),
+        )
 
     return results

@@ -139,7 +139,10 @@ def _query_ingroup_snps_with_handle(
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 variants = list(vcf(region))
-        except Exception:
+        except Exception as exc:
+            logger.debug(
+                "ingroup VCF query failed for %s region %s: %s", cds.gene_id, region, exc
+            )
             continue
 
         for variant in variants:
@@ -234,7 +237,10 @@ def _query_outgroup_genotype_with_handle(
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 variants = list(vcf(region))
-        except Exception:
+        except Exception as exc:
+            logger.debug(
+                "outgroup VCF query failed for %s region %s: %s", cds.gene_id, region, exc
+            )
             continue
 
         for variant in variants:

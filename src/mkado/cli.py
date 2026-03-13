@@ -49,6 +49,32 @@ def validate_path_not_flag(value: Path | None) -> Path | None:
     return value
 
 
+def _collect_gene_data(
+    worker_results: list[WorkerResult],
+    mode_label: str,
+) -> list:
+    """Collect non-None results and report how many genes contributed.
+
+    Args:
+        worker_results: List of WorkerResult from parallel processing.
+        mode_label: Label for the stderr message (e.g., "aggregated asymptotic").
+
+    Returns:
+        List of non-None result objects.
+    """
+    gene_data = [r.result for r in worker_results if r.result is not None]
+    n_dropped = len(worker_results) - len(gene_data)
+    if n_dropped > 0:
+        typer.echo(
+            f"Using {len(gene_data)}/{len(worker_results)} genes for {mode_label} "
+            f"({n_dropped} returned no data)",
+            err=True,
+        )
+    else:
+        typer.echo(f"Using {len(gene_data)} genes for {mode_label}", err=True)
+    return gene_data
+
+
 def compute_adjusted_pvalues(
     results: list[tuple[str, MKResult | PolarizedMKResult]],
 ) -> list[float]:
@@ -946,9 +972,9 @@ def batch(
             for warning in warnings:
                 typer.echo(warning, err=True)
 
-            gene_data_list: list[PolymorphismData] = [
-                r.result for r in worker_results if r.result is not None
-            ]
+            gene_data_list: list[PolymorphismData] = _collect_gene_data(
+                worker_results, "alpha-TG"
+            )
 
             if gene_data_list:
                 result = alpha_tg_from_gene_data(
@@ -971,9 +997,9 @@ def batch(
             for warning in warnings:
                 typer.echo(warning, err=True)
 
-            gene_data_list: list[PolymorphismData] = [
-                r.result for r in worker_results if r.result is not None
-            ]
+            gene_data_list: list[PolymorphismData] = _collect_gene_data(
+                worker_results, "aggregated asymptotic"
+            )
 
             if gene_data_list:
                 result = asymptotic_mk_test_aggregated(
@@ -1009,9 +1035,9 @@ def batch(
             for warning in warnings:
                 typer.echo(warning, err=True)
 
-            gene_data_list: list[PolymorphismData] = [
-                r.result for r in worker_results if r.result is not None
-            ]
+            gene_data_list: list[PolymorphismData] = _collect_gene_data(
+                worker_results, "aggregated imputed"
+            )
 
             if gene_data_list:
                 result = imputed_mk_test_multi(
@@ -1132,9 +1158,9 @@ def batch(
             for warning in warnings:
                 typer.echo(warning, err=True)
 
-            gene_data_list: list[PolymorphismData] = [
-                r.result for r in worker_results if r.result is not None
-            ]
+            gene_data_list: list[PolymorphismData] = _collect_gene_data(
+                worker_results, "alpha-TG"
+            )
 
             if gene_data_list:
                 result = alpha_tg_from_gene_data(
@@ -1157,9 +1183,9 @@ def batch(
             for warning in warnings:
                 typer.echo(warning, err=True)
 
-            gene_data_list: list[PolymorphismData] = [
-                r.result for r in worker_results if r.result is not None
-            ]
+            gene_data_list: list[PolymorphismData] = _collect_gene_data(
+                worker_results, "aggregated asymptotic"
+            )
 
             if gene_data_list:
                 result = asymptotic_mk_test_aggregated(
@@ -1195,9 +1221,9 @@ def batch(
             for warning in warnings:
                 typer.echo(warning, err=True)
 
-            gene_data_list: list[PolymorphismData] = [
-                r.result for r in worker_results if r.result is not None
-            ]
+            gene_data_list: list[PolymorphismData] = _collect_gene_data(
+                worker_results, "aggregated imputed"
+            )
 
             if gene_data_list:
                 result = imputed_mk_test_multi(
@@ -1623,9 +1649,9 @@ def vcf(
         from mkado.analysis.alpha_tg import alpha_tg_from_gene_data
         from mkado.analysis.asymptotic import PolymorphismData
 
-        gene_data_list: list[PolymorphismData] = [
-            r.result for r in worker_results if r.result is not None
-        ]
+        gene_data_list: list[PolymorphismData] = _collect_gene_data(
+            worker_results, "alpha-TG"
+        )
         if gene_data_list:
             result = alpha_tg_from_gene_data(
                 gene_data=gene_data_list,
@@ -1640,7 +1666,7 @@ def vcf(
     if use_asymptotic and aggregate:
         from mkado.analysis.asymptotic import PolymorphismData
 
-        gene_data_list = [r.result for r in worker_results if r.result is not None]
+        gene_data_list = _collect_gene_data(worker_results, "aggregated asymptotic")
         if gene_data_list:
             result = asymptotic_mk_test_aggregated(
                 gene_data=gene_data_list,
@@ -1666,7 +1692,7 @@ def vcf(
         from mkado.analysis.asymptotic import PolymorphismData
         from mkado.analysis.imputed import imputed_mk_test_multi
 
-        gene_data_list = [r.result for r in worker_results if r.result is not None]
+        gene_data_list = _collect_gene_data(worker_results, "aggregated imputed")
         if gene_data_list:
             result = imputed_mk_test_multi(
                 gene_data=gene_data_list,

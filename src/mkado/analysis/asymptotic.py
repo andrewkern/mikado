@@ -5,6 +5,7 @@ Based on Messer & Petrov (2013) PNAS.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
@@ -18,6 +19,8 @@ from mkado.core.sequences import SequenceSet
 
 if TYPE_CHECKING:
     pass
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -490,8 +493,8 @@ def asymptotic_mk_test_aggregated(
         exp_ci_width = ci_high_exp - ci_low_exp
         exp_success = True
 
-    except (RuntimeError, ValueError):
-        pass
+    except (RuntimeError, ValueError) as exc:
+        logger.debug("Exponential model fit failed: %s", exc)
 
     # Try linear fit
     lin_success = False
@@ -520,8 +523,8 @@ def asymptotic_mk_test_aggregated(
         )
         lin_success = True
 
-    except (RuntimeError, ValueError):
-        pass
+    except (RuntimeError, ValueError) as exc:
+        logger.debug("Linear model fit failed: %s", exc)
 
     # Select best model
     # Following asymptoticMK R package: prefer exponential unless CI > 100, then use linear
