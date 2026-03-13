@@ -190,8 +190,11 @@ mkado vcf --vcf VCF --outgroup-vcf VCF --ref FASTA --gff GFF3 [OPTIONS]
 | `--alpha-tg` | | Compute weighted α_TG |
 | `--imputed` | | Use imputed MK test |
 | `--aggregate/--per-gene` | | Aggregate or per-gene results |
+| `--volcano` | | Generate volcano plot (PNG, PDF, or SVG) |
+| `--plot-asymptotic` | | Generate alpha(x) plot for aggregated asymptotic test |
 | `--workers` | `-w` | Parallel workers (0=auto) |
 | `--format` | `-f` | Output format: pretty, tsv, json |
+| `--verbose` | | Show htslib/VCF parsing warnings |
 
 **Examples:**
 

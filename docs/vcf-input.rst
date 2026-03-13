@@ -162,7 +162,14 @@ Additional Options
    mkado vcf ... --code-table invertebrate-mito
    mkado vcf ... --code-table 5
 
+   # Show htslib/VCF parsing warnings (e.g., missing FORMAT definitions)
+   mkado vcf ... --verbose
+
 See :doc:`tutorial` for the full list of genetic codes.
+
+.. note::
+
+   By default, low-level warnings from htslib (e.g., "FORMAT 'GT' not defined in header") are suppressed. Use ``--verbose`` to display them on stderr for debugging.
 
 How It Works
 ------------
