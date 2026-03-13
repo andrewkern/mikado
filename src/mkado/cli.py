@@ -1507,7 +1507,7 @@ def vcf(
     typer.echo(f"Found {len(cds_regions)} genes in annotation", err=True)
 
     # Build tasks
-    from mkado.vcf_workers import VcfBatchTask, process_vcf_gene
+    from mkado.vcf_workers import VcfBatchChunk, VcfBatchTask, process_vcf_chunk, process_vcf_gene
 
     is_aggregate = (use_asymptotic and aggregate) or alpha_tg or (use_imputed and aggregate)
 
@@ -1561,25 +1561,36 @@ def vcf(
                     worker_results.append(wr)
                 progress.advance(task_id)
     else:
+        import math
         from concurrent.futures import ProcessPoolExecutor, as_completed
 
+        # Partition tasks into chunks (one per worker) so each worker opens
+        # VCF/FASTA handles only once and reuses them for all its genes.
+        chunk_size = math.ceil(len(tasks) / num_workers)
+        chunks = [
+            VcfBatchChunk(tasks=tasks[i : i + chunk_size])
+            for i in range(0, len(tasks), chunk_size)
+        ]
+
         with ProcessPoolExecutor(max_workers=num_workers) as executor:
-            futures = {executor.submit(process_vcf_gene, t): t for t in tasks}
+            futures = {executor.submit(process_vcf_chunk, c): c for c in chunks}
             with create_rainbow_progress() as progress:
                 task_id = progress.add_task("Processing genes", total=len(tasks))
                 for future in as_completed(futures):
+                    chunk = futures[future]
                     try:
-                        wr = future.result()
-                        if wr.error:
-                            batch_warnings.append(wr.error)
-                        elif wr.warning:
-                            batch_warnings.append(f"Warning: {wr.warning}")
-                        if wr.result is not None:
-                            worker_results.append(wr)
+                        chunk_results = future.result()
+                        for wr in chunk_results:
+                            if wr.error:
+                                batch_warnings.append(wr.error)
+                            elif wr.warning:
+                                batch_warnings.append(f"Warning: {wr.warning}")
+                            if wr.result is not None:
+                                worker_results.append(wr)
                     except Exception as e:
-                        t = futures[future]
-                        batch_warnings.append(f"Error processing {t.gene_id}: {e}")
-                    progress.advance(task_id)
+                        for t in chunk.tasks:
+                            batch_warnings.append(f"Error processing {t.gene_id}: {e}")
+                    progress.advance(task_id, advance=len(chunk.tasks))
 
     for w in batch_warnings:
         typer.echo(w, err=True)

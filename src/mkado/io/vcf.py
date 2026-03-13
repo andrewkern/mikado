@@ -90,18 +90,16 @@ def _reconstruct_codon_with_sub(
     return ref_codon.upper(), alt_codon.upper()
 
 
-def _query_ingroup_snps(
-    vcf_path: str | Path,
+def _query_ingroup_snps_with_handle(
+    vcf: object,
     cds: CdsRegion,
     stats: GeneStats,
 ) -> list[_SnpInfo]:
     """Query ingroup VCF for biallelic SNPs overlapping a CDS region.
 
-    Returns SNPs in genomic coordinates with allele frequencies.
+    Uses a pre-opened cyvcf2.VCF handle. Returns SNPs in genomic coordinates
+    with allele frequencies.
     """
-    import cyvcf2
-
-    vcf = cyvcf2.VCF(str(vcf_path))
     snps: list[_SnpInfo] = []
 
     # Build query regions from exons
@@ -173,22 +171,33 @@ def _query_ingroup_snps(
                 )
             )
 
+    return snps
+
+
+def _query_ingroup_snps(
+    vcf_path: str | Path,
+    cds: CdsRegion,
+    stats: GeneStats,
+) -> list[_SnpInfo]:
+    """Query ingroup VCF for biallelic SNPs overlapping a CDS region."""
+    import cyvcf2
+
+    vcf = cyvcf2.VCF(str(vcf_path))
+    snps = _query_ingroup_snps_with_handle(vcf, cds, stats)
     vcf.close()
     return snps
 
 
-def _query_outgroup_genotype(
-    vcf_path: str | Path,
+def _query_outgroup_genotype_with_handle(
+    vcf: object,
     cds: CdsRegion,
 ) -> dict[int, str]:
     """Query outgroup VCF for genotypes at CDS positions.
 
-    Returns dict mapping 0-based genomic position -> outgroup allele.
-    Only includes positions where outgroup differs from reference.
+    Uses a pre-opened cyvcf2.VCF handle. Returns dict mapping 0-based genomic
+    position -> outgroup allele. Only includes positions where outgroup differs
+    from reference.
     """
-    import cyvcf2
-
-    vcf = cyvcf2.VCF(str(vcf_path))
     outgroup_alleles: dict[int, str] = {}
 
     for start, end in cds.exons:
@@ -227,6 +236,18 @@ def _query_outgroup_genotype(
             elif gt == 1:  # HET - treat as carrying ALT
                 outgroup_alleles[pos_0] = alt
 
+    return outgroup_alleles
+
+
+def _query_outgroup_genotype(
+    vcf_path: str | Path,
+    cds: CdsRegion,
+) -> dict[int, str]:
+    """Query outgroup VCF for genotypes at CDS positions."""
+    import cyvcf2
+
+    vcf = cyvcf2.VCF(str(vcf_path))
+    outgroup_alleles = _query_outgroup_genotype_with_handle(vcf, cds)
     vcf.close()
     return outgroup_alleles
 
@@ -239,6 +260,10 @@ def extract_gene_data(
     genetic_code: GeneticCode | None = None,
     min_frequency: float = 0.0,
     no_singletons: bool = False,
+    *,
+    ingroup_vcf: object | None = None,
+    outgroup_vcf: object | None = None,
+    ref_fasta: object | None = None,
 ) -> tuple[PolymorphismData, GeneStats]:
     """Extract polymorphism and divergence data for a single gene from VCF.
 
@@ -250,20 +275,29 @@ def extract_gene_data(
         genetic_code: Genetic code for classification (standard if None).
         min_frequency: Minimum derived allele frequency threshold.
         no_singletons: If True, exclude singletons.
+        ingroup_vcf: Pre-opened cyvcf2.VCF handle for ingroup (optional).
+        outgroup_vcf: Pre-opened cyvcf2.VCF handle for outgroup (optional).
+        ref_fasta: Pre-opened pysam.FastaFile handle (optional).
 
     Returns:
         Tuple of (PolymorphismData, GeneStats).
     """
-    import pysam
-
     code = genetic_code or DEFAULT_CODE
     stats = GeneStats()
 
-    ref_fasta = pysam.FastaFile(str(ref_fasta_path))
+    # Use pre-opened handles if provided, otherwise open new ones
+    owns_ref_fasta = ref_fasta is None
+    if owns_ref_fasta:
+        import pysam
+
+        ref_fasta = pysam.FastaFile(str(ref_fasta_path))
     ref_fetch = _ref_base_fetcher(ref_fasta)
 
     # Get ingroup SNPs
-    ingroup_snps = _query_ingroup_snps(vcf_path, cds, stats)
+    if ingroup_vcf is not None:
+        ingroup_snps = _query_ingroup_snps_with_handle(ingroup_vcf, cds, stats)
+    else:
+        ingroup_snps = _query_ingroup_snps(vcf_path, cds, stats)
 
     # Calculate singleton threshold
     if no_singletons and ingroup_snps:
@@ -274,7 +308,9 @@ def extract_gene_data(
 
     # Get outgroup genotypes
     outgroup_alleles: dict[int, str] = {}
-    if outgroup_vcf_path is not None:
+    if outgroup_vcf is not None:
+        outgroup_alleles = _query_outgroup_genotype_with_handle(outgroup_vcf, cds)
+    elif outgroup_vcf_path is not None:
         outgroup_alleles = _query_outgroup_genotype(outgroup_vcf_path, cds)
 
     # Index ingroup SNPs by position for quick lookup
@@ -332,7 +368,7 @@ def extract_gene_data(
     dn = 0
     ds = 0
 
-    if outgroup_vcf_path is not None:
+    if outgroup_vcf_path is not None or outgroup_vcf is not None:
         # Check each codon for fixed differences between reference and outgroup
         for codon_idx in range(cds.num_codons()):
             p1, p2, p3 = cds.codon_positions(codon_idx)
@@ -391,7 +427,8 @@ def extract_gene_data(
                 elif change_type == "S":
                     ds += 1
 
-    ref_fasta.close()
+    if owns_ref_fasta:
+        ref_fasta.close()
 
     return PolymorphismData(
         polymorphisms=polymorphisms,
