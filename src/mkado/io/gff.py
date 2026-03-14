@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import gzip
 import logging
+import re
 from collections import defaultdict
 from pathlib import Path
 
@@ -22,6 +23,13 @@ def _parse_attributes(attr_string: str) -> dict[str, str]:
         key, _, value = item.partition("=")
         attrs[key] = value
     return attrs
+
+
+def _looks_like_gtf(attr_string: str) -> bool:
+    """Detect GTF-style attributes (key "value") vs GFF3-style (key=value)."""
+    # GTF uses: gene_id "ENSG00000..."; transcript_id "ENST00000...";
+    # GFF3 uses: ID=gene1;Parent=tx1;Name=Foo
+    return bool(re.search(r'\w+\s+"[^"]*"', attr_string))
 
 
 def parse_gff3(
@@ -52,21 +60,52 @@ def parse_gff3(
     # Track mRNA/transcript features
     transcript_info: dict[str, dict] = {}
 
+    gtf_checked = False
+    malformed_lines = 0
     opener = gzip.open if path.suffix == ".gz" else open
     with opener(path, "rt") as f:
-        for line in f:
+        for line_num, line in enumerate(f, 1):
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
 
             fields = line.split("\t")
             if len(fields) < 9:
+                malformed_lines += 1
+                logger.debug(
+                    "GFF3: skipping line %d (expected 9 tab-separated columns, got %d)",
+                    line_num,
+                    len(fields),
+                )
+                continue
+
+            # Detect GTF format on first data line
+            if not gtf_checked:
+                gtf_checked = True
+                if _looks_like_gtf(fields[8]):
+                    raise ValueError(
+                        f"File appears to be GTF format, not GFF3 "
+                        f"(line {line_num} has GTF-style attributes: "
+                        f'key "value" instead of key=value). '
+                        f"Convert to GFF3 or use a GTF-compatible parser."
+                    )
+
+            # Parse coordinates with error handling
+            try:
+                start = int(fields[3]) - 1  # GFF3 is 1-based, convert to 0-based
+                end = int(fields[4])  # GFF3 end is inclusive, but +1 for half-open
+            except ValueError:
+                malformed_lines += 1
+                logger.debug(
+                    "GFF3: skipping line %d (non-integer coordinates: start=%r, end=%r)",
+                    line_num,
+                    fields[3],
+                    fields[4],
+                )
                 continue
 
             chrom = fields[0]
             feature_type = fields[2]
-            start = int(fields[3]) - 1  # GFF3 is 1-based, convert to 0-based
-            end = int(fields[4])  # GFF3 end is inclusive, but +1 for half-open
             strand = fields[6]
             phase_str = fields[7]
             attrs = _parse_attributes(fields[8])
@@ -89,6 +128,10 @@ def parse_gff3(
             elif feature_type == "CDS":
                 parent = attrs.get("Parent", "")
                 if not parent:
+                    logger.debug(
+                        "GFF3: skipping CDS at line %d (no Parent attribute)",
+                        line_num,
+                    )
                     continue
                 # Parent can be comma-separated in some GFF3 files
                 for pid in parent.split(","):
@@ -104,20 +147,52 @@ def parse_gff3(
                         }
                     )
 
+    if malformed_lines > 0:
+        logger.warning(
+            "GFF3: %d malformed line(s) skipped (see debug log for details)",
+            malformed_lines,
+        )
+
     # Group transcripts by gene, select longest
     gene_transcripts: dict[str, list[str]] = defaultdict(list)
     for tid, gid in transcript_to_gene.items():
         if tid in cds_by_transcript:
             gene_transcripts[gid].append(tid)
 
-    # Also handle CDS features that directly reference a gene (no mRNA level)
+    # Also handle CDS features that directly reference a gene (no mRNA level).
+    # Per GFF3 spec NOTE 2, CDS may be parented directly to a gene.
+    # We distinguish this (legitimate) from CDS parented to an unknown ID
+    # (usually means mRNA features are missing or lack ID attributes).
+    n_cds_to_gene = 0
+    n_cds_to_unknown = 0
     for tid, cds_list in cds_by_transcript.items():
         if tid not in transcript_to_gene:
-            # This CDS parent is a gene directly, or an unknown parent
-            # Treat tid as both gene and transcript
             if tid not in gene_transcripts:
                 gene_transcripts[tid].append(tid)
                 transcript_to_gene[tid] = tid
+                if tid in gene_names:
+                    n_cds_to_gene += 1
+                else:
+                    n_cds_to_unknown += 1
+
+    if n_cds_to_unknown > 0:
+        n_resolved = len(gene_transcripts) - n_cds_to_gene - n_cds_to_unknown
+        if n_resolved > 0:
+            logger.warning(
+                "GFF3: %d CDS groups could not be linked to a gene via "
+                "mRNA/transcript features and were treated as separate genes "
+                "(only %d resolved normally). This usually means mRNA features "
+                "are missing or lack an ID attribute — check your annotation file.",
+                n_cds_to_unknown,
+                n_resolved,
+            )
+        else:
+            logger.warning(
+                "GFF3: no mRNA/transcript features found — all %d CDS groups "
+                "were treated as separate genes based on their Parent attribute. "
+                "If your file has mRNA features, check that they have ID attributes.",
+                n_cds_to_unknown,
+            )
 
     results: list[CdsRegion] = []
     skipped_no_cds = 0
@@ -179,7 +254,7 @@ def parse_gff3(
             logger.debug(
                 "GFF3: skipping %s (CDS length %d not divisible by 3)",
                 gene_id,
-                region.cds_length(),
+                region.cds_length,
             )
             continue
 
