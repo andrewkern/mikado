@@ -44,10 +44,35 @@ def validate_path_not_flag(value: Path | None) -> Path | None:
     """
     if value is not None and str(value).startswith("-"):
         raise typer.BadParameter(
-            f"'{value}' looks like a flag, not a file path. "
-            "Check the order of your arguments."
+            f"'{value}' looks like a flag, not a file path. Check the order of your arguments."
         )
     return value
+
+
+def _collect_gene_data(
+    worker_results: list[WorkerResult],
+    mode_label: str,
+) -> list:
+    """Collect non-None results and report how many genes contributed.
+
+    Args:
+        worker_results: List of WorkerResult from parallel processing.
+        mode_label: Label for the stderr message (e.g., "aggregated asymptotic").
+
+    Returns:
+        List of non-None result objects.
+    """
+    gene_data = [r.result for r in worker_results if r.result is not None]
+    n_dropped = len(worker_results) - len(gene_data)
+    if n_dropped > 0:
+        typer.echo(
+            f"Using {len(gene_data)}/{len(worker_results)} genes for {mode_label} "
+            f"({n_dropped} returned no data)",
+            err=True,
+        )
+    else:
+        typer.echo(f"Using {len(gene_data)} genes for {mode_label}", err=True)
+    return gene_data
 
 
 def compute_adjusted_pvalues(
@@ -97,9 +122,7 @@ class RainbowBarColumn(BarColumn):
         """Render the bar with rainbow colors."""
         if task.total:
             progress = task.completed / task.total
-            color_idx = int(progress * len(self.RAINBOW_COLORS) * 3) % len(
-                self.RAINBOW_COLORS
-            )
+            color_idx = int(progress * len(self.RAINBOW_COLORS) * 3) % len(self.RAINBOW_COLORS)
         else:
             color_idx = self._color_index
             self._color_index = (self._color_index + 1) % len(self.RAINBOW_COLORS)
@@ -228,14 +251,16 @@ def test(
     ingroup_match: Annotated[
         Optional[str],
         typer.Option(
-            "--ingroup-match", "-i",
+            "--ingroup-match",
+            "-i",
             help="Ingroup sequence name pattern (enables combined file mode)",
         ),
     ] = None,
     outgroup_match: Annotated[
         Optional[str],
         typer.Option(
-            "--outgroup-match", "-o",
+            "--outgroup-match",
+            "-o",
             help="Outgroup sequence name pattern (required with -i)",
         ),
     ] = None,
@@ -250,7 +275,8 @@ def test(
     polarize_file: Annotated[
         Optional[Path],
         typer.Option(
-            "--polarize", "-p",
+            "--polarize",
+            "-p",
             help="Second outgroup file for polarized test (separate files mode)",
         ),
     ] = None,
@@ -258,7 +284,8 @@ def test(
     use_asymptotic: Annotated[
         bool,
         typer.Option(
-            "--asymptotic", "-a",
+            "--asymptotic",
+            "-a",
             help="Use asymptotic MK test (accounts for slightly deleterious mutations)",
         ),
     ] = False,
@@ -496,7 +523,9 @@ def test(
         elif polarize_match:
             outgroup2_seqs = all_seqs.filter_by_name(polarize_match)
             if len(outgroup2_seqs) == 0:
-                typer.echo(f"Error: No sequences match polarize pattern '{polarize_match}'", err=True)
+                typer.echo(
+                    f"Error: No sequences match polarize pattern '{polarize_match}'", err=True
+                )
                 raise typer.Exit(1)
             typer.echo(f"Polarizing with {len(outgroup2_seqs)} outgroup2 sequences", err=True)
             result = polarized_mk_test(
@@ -620,14 +649,16 @@ def batch(
     ingroup_match: Annotated[
         Optional[str],
         typer.Option(
-            "--ingroup-match", "-i",
+            "--ingroup-match",
+            "-i",
             help="Ingroup sequence name pattern (enables combined file mode)",
         ),
     ] = None,
     outgroup_match: Annotated[
         Optional[str],
         typer.Option(
-            "--outgroup-match", "-o",
+            "--outgroup-match",
+            "-o",
             help="Outgroup sequence name pattern (required with -i)",
         ),
     ] = None,
@@ -666,7 +697,8 @@ def batch(
     use_asymptotic: Annotated[
         bool,
         typer.Option(
-            "--asymptotic", "-a",
+            "--asymptotic",
+            "-a",
             help="Use asymptotic MK test",
         ),
     ] = False,
@@ -920,7 +952,8 @@ def batch(
                 pool_polymorphisms=pool_polymorphisms,
                 min_freq=min_freq,
                 no_singletons=no_singletons,
-                extract_only=(use_asymptotic and aggregate) or alpha_tg
+                extract_only=(use_asymptotic and aggregate)
+                or alpha_tg
                 or (use_imputed and aggregate),
                 code_table=code_table_id,
             )
@@ -939,9 +972,9 @@ def batch(
             for warning in warnings:
                 typer.echo(warning, err=True)
 
-            gene_data_list: list[PolymorphismData] = [
-                r.result for r in worker_results if r.result is not None
-            ]
+            gene_data_list: list[PolymorphismData] = _collect_gene_data(
+                worker_results, "alpha-TG"
+            )
 
             if gene_data_list:
                 result = alpha_tg_from_gene_data(
@@ -964,9 +997,9 @@ def batch(
             for warning in warnings:
                 typer.echo(warning, err=True)
 
-            gene_data_list: list[PolymorphismData] = [
-                r.result for r in worker_results if r.result is not None
-            ]
+            gene_data_list: list[PolymorphismData] = _collect_gene_data(
+                worker_results, "aggregated asymptotic"
+            )
 
             if gene_data_list:
                 result = asymptotic_mk_test_aggregated(
@@ -1002,9 +1035,9 @@ def batch(
             for warning in warnings:
                 typer.echo(warning, err=True)
 
-            gene_data_list: list[PolymorphismData] = [
-                r.result for r in worker_results if r.result is not None
-            ]
+            gene_data_list: list[PolymorphismData] = _collect_gene_data(
+                worker_results, "aggregated imputed"
+            )
 
             if gene_data_list:
                 result = imputed_mk_test_multi(
@@ -1017,9 +1050,7 @@ def batch(
             return
 
         # Per-gene mode
-        worker_results, warnings = run_parallel_batch(
-            tasks, num_workers, "Processing alignments"
-        )
+        worker_results, warnings = run_parallel_batch(tasks, num_workers, "Processing alignments")
 
         for warning in warnings:
             typer.echo(warning, err=True)
@@ -1029,7 +1060,9 @@ def batch(
     else:
         # === SEPARATE FILES MODE ===
         if use_asymptotic and polarize_pattern:
-            typer.echo("Error: --asymptotic and --polarize-pattern are mutually exclusive", err=True)
+            typer.echo(
+                "Error: --asymptotic and --polarize-pattern are mutually exclusive", err=True
+            )
             raise typer.Exit(1)
 
         ingroup_files = sorted(input_dir.glob(ingroup_pattern))
@@ -1099,7 +1132,8 @@ def batch(
                     pool_polymorphisms=pool_polymorphisms,
                     min_freq=min_freq,
                     no_singletons=no_singletons,
-                    extract_only=(use_asymptotic and aggregate) or alpha_tg
+                    extract_only=(use_asymptotic and aggregate)
+                    or alpha_tg
                     or (use_imputed and aggregate),
                     code_table=code_table_id,
                 )
@@ -1124,9 +1158,9 @@ def batch(
             for warning in warnings:
                 typer.echo(warning, err=True)
 
-            gene_data_list: list[PolymorphismData] = [
-                r.result for r in worker_results if r.result is not None
-            ]
+            gene_data_list: list[PolymorphismData] = _collect_gene_data(
+                worker_results, "alpha-TG"
+            )
 
             if gene_data_list:
                 result = alpha_tg_from_gene_data(
@@ -1149,9 +1183,9 @@ def batch(
             for warning in warnings:
                 typer.echo(warning, err=True)
 
-            gene_data_list: list[PolymorphismData] = [
-                r.result for r in worker_results if r.result is not None
-            ]
+            gene_data_list: list[PolymorphismData] = _collect_gene_data(
+                worker_results, "aggregated asymptotic"
+            )
 
             if gene_data_list:
                 result = asymptotic_mk_test_aggregated(
@@ -1187,9 +1221,9 @@ def batch(
             for warning in warnings:
                 typer.echo(warning, err=True)
 
-            gene_data_list: list[PolymorphismData] = [
-                r.result for r in worker_results if r.result is not None
-            ]
+            gene_data_list: list[PolymorphismData] = _collect_gene_data(
+                worker_results, "aggregated imputed"
+            )
 
             if gene_data_list:
                 result = imputed_mk_test_multi(
@@ -1202,9 +1236,7 @@ def batch(
             return
 
         # Per-gene mode
-        worker_results, warnings = run_parallel_batch(
-            tasks, num_workers, "Processing files"
-        )
+        worker_results, warnings = run_parallel_batch(tasks, num_workers, "Processing files")
 
         for warning in warnings:
             typer.echo(warning, err=True)
@@ -1278,6 +1310,440 @@ def codes() -> None:
         typer.echo(f"  {table_id:>2}  {name}")
         if alias_str:
             typer.echo(f"      aliases: {alias_str}")
+
+
+@app.command()
+def vcf(
+    vcf_file: Annotated[
+        Path,
+        typer.Option("--vcf", help="Ingroup VCF file (multi-sample, bgzipped+tabix recommended)"),
+    ],
+    ref: Annotated[
+        Path,
+        typer.Option(
+            "--ref", help="Reference FASTA file, plain or bgzipped (must be faidx-indexed)"
+        ),
+    ],
+    gff: Annotated[
+        Path,
+        typer.Option("--gff", help="GFF3 annotation file (plain or gzipped)"),
+    ],
+    outgroup_vcf: Annotated[
+        Path,
+        typer.Option(
+            "--outgroup-vcf",
+            help="Single-sample outgroup VCF (called against same reference)",
+        ),
+    ],
+    # === Gene selection ===
+    gene: Annotated[
+        Optional[str],
+        typer.Option("--gene", help="Single gene ID to analyze"),
+    ] = None,
+    gene_list: Annotated[
+        Optional[Path],
+        typer.Option(
+            "--gene-list",
+            help="File with gene IDs (one per line) to analyze",
+            callback=validate_path_not_flag,
+        ),
+    ] = None,
+    # === Analysis type ===
+    use_asymptotic: Annotated[
+        bool,
+        typer.Option("--asymptotic", "-a", help="Use asymptotic MK test"),
+    ] = False,
+    aggregate: Annotated[
+        bool,
+        typer.Option(
+            "--aggregate/--per-gene",
+            help="Aggregate across genes (default) or per-gene results",
+        ),
+    ] = True,
+    alpha_tg: Annotated[
+        bool,
+        typer.Option("--alpha-tg", help="Compute weighted alpha_TG"),
+    ] = False,
+    use_imputed: Annotated[
+        bool,
+        typer.Option("--imputed", help="Use imputed MK test"),
+    ] = False,
+    # === Asymptotic options ===
+    bins: Annotated[
+        int,
+        typer.Option("--bins", "-b", help="Frequency bins (asymptotic)"),
+    ] = 10,
+    bootstrap: Annotated[
+        int,
+        typer.Option("--bootstrap", help="Bootstrap replicates"),
+    ] = 100,
+    freq_cutoffs: Annotated[
+        str,
+        typer.Option("--freq-cutoffs", help="Frequency range 'low,high' (asymptotic)"),
+    ] = "0.1,0.9",
+    # === Common options ===
+    output_format: Annotated[
+        str,
+        typer.Option("--format", "-f", help="Output format: pretty, tsv, json"),
+    ] = "tsv",
+    min_freq: Annotated[
+        float,
+        typer.Option("--min-freq", help="Min derived allele frequency"),
+    ] = 0.0,
+    no_singletons: Annotated[
+        bool,
+        typer.Option("--no-singletons", help="Exclude singletons"),
+    ] = False,
+    code_table: Annotated[
+        str,
+        typer.Option(
+            "--code-table",
+            help="Genetic code: name or NCBI table ID",
+        ),
+    ] = "standard",
+    # === Plot options ===
+    plot_asymptotic: Annotated[
+        Optional[Path],
+        typer.Option(
+            "--plot-asymptotic",
+            help="Generate alpha(x) plot for asymptotic test (PNG, PDF, or SVG)",
+            callback=validate_path_not_flag,
+        ),
+    ] = None,
+    volcano: Annotated[
+        Optional[Path],
+        typer.Option(
+            "--volcano",
+            help="Generate volcano plot and save to specified path (PNG, PDF, or SVG)",
+            callback=validate_path_not_flag,
+        ),
+    ] = None,
+    workers: Annotated[
+        int,
+        typer.Option("--workers", "-w", min=0, help="Parallel workers (0=auto, 1=sequential)"),
+    ] = 0,
+    verbose: Annotated[
+        bool,
+        typer.Option("--verbose", help="Show warnings from htslib/VCF parsing"),
+    ] = False,
+) -> None:
+    """Run MK test from VCF + reference + GFF3 annotation.
+
+    Extracts polymorphism (from ingroup VCF) and divergence (from outgroup VCF)
+    data for each gene defined in the GFF3 annotation, then runs the selected
+    MK test variant.
+
+    REQUIREMENTS:
+
+    - Ingroup VCF: multi-sample population VCF (bgzipped+tabix recommended)
+    - Reference FASTA: genome assembly the VCF was called against (plain or bgzipped, faidx-indexed)
+    - GFF3 annotation: gene models with CDS features (plain or gzipped)
+    - Outgroup VCF: single-sample VCF of outgroup (for divergence)
+
+    EXAMPLES:
+
+        mkado vcf --vcf pop.vcf.gz --ref genome.fa --gff genes.gff3 --outgroup-vcf outgroup.vcf.gz
+        mkado vcf --vcf pop.vcf.gz --ref genome.fa --gff genes.gff3 --outgroup-vcf out.vcf.gz -a
+        mkado vcf --vcf pop.vcf.gz --ref genome.fa --gff genes.gff3 --outgroup-vcf out.vcf.gz --gene BRCA1
+    """
+    # Configure logging — always show warnings (e.g., volcano plot exclusions),
+    # --verbose also enables debug messages (e.g., htslib warnings, per-gene details)
+    import logging as _logging
+    import sys as _sys
+
+    _logging.basicConfig(level=_logging.WARNING, format="%(message)s", stream=_sys.stderr)
+    if verbose:
+        _logging.getLogger("mkado.io.vcf").setLevel(_logging.DEBUG)
+        _logging.getLogger("mkado.io.plotting").setLevel(_logging.DEBUG)
+
+    if output_format not in ("pretty", "tsv", "json"):
+        typer.echo(f"Error: Invalid format '{output_format}'.", err=True)
+        raise typer.Exit(1)
+
+    # Validate file existence
+    for path, name in [(vcf_file, "--vcf"), (ref, "--ref"), (gff, "--gff")]:
+        if not path.exists():
+            typer.echo(f"Error: {name} file not found: {path}", err=True)
+            raise typer.Exit(1)
+
+    if not outgroup_vcf.exists():
+        typer.echo(f"Error: --outgroup-vcf file not found: {outgroup_vcf}", err=True)
+        raise typer.Exit(1)
+
+    # Validate option compatibility (same as batch command)
+    if use_asymptotic and min_freq > 0.0:
+        typer.echo("Error: --min-freq cannot be used with --asymptotic.", err=True)
+        raise typer.Exit(1)
+
+    if use_asymptotic and no_singletons:
+        typer.echo("Error: --no-singletons cannot be used with --asymptotic.", err=True)
+        raise typer.Exit(1)
+
+    if use_imputed and use_asymptotic:
+        typer.echo("Error: --imputed and --asymptotic are mutually exclusive.", err=True)
+        raise typer.Exit(1)
+
+    if alpha_tg and use_asymptotic:
+        typer.echo("Error: --alpha-tg and --asymptotic are mutually exclusive.", err=True)
+        raise typer.Exit(1)
+
+    if use_imputed and alpha_tg:
+        typer.echo("Error: --imputed and --alpha-tg are mutually exclusive.", err=True)
+        raise typer.Exit(1)
+
+    if use_imputed and no_singletons:
+        typer.echo("Error: --no-singletons cannot be used with --imputed.", err=True)
+        raise typer.Exit(1)
+
+    if no_singletons and min_freq > 0.0:
+        typer.echo("Error: --no-singletons and --min-freq cannot be used together.", err=True)
+        raise typer.Exit(1)
+
+    imputed_cutoff = min_freq if (use_imputed and min_freq > 0.0) else 0.15
+
+    # Resolve genetic code
+    from mkado.data.genetic_codes import resolve_code_table
+
+    try:
+        code_table_id = resolve_code_table(code_table)
+    except ValueError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
+
+    fmt = OutputFormat(output_format)
+
+    # Parse frequency cutoffs
+    try:
+        cutoff_parts = freq_cutoffs.split(",")
+        frequency_cutoffs = (float(cutoff_parts[0]), float(cutoff_parts[1]))
+    except (ValueError, IndexError):
+        typer.echo(f"Error: Invalid frequency cutoffs '{freq_cutoffs}'.", err=True)
+        raise typer.Exit(1)
+
+    # Parse GFF3
+    from mkado.io.gff import parse_gff3
+
+    gene_ids = None
+    if gene:
+        gene_ids = {gene}
+    elif gene_list:
+        if not gene_list.exists():
+            typer.echo(f"Error: Gene list file not found: {gene_list}", err=True)
+            raise typer.Exit(1)
+        gene_ids = set()
+        with open(gene_list) as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    gene_ids.add(line)
+        typer.echo(f"Loaded {len(gene_ids)} gene IDs from {gene_list}", err=True)
+
+    cds_regions = parse_gff3(gff, gene_ids=gene_ids)
+
+    if not cds_regions:
+        typer.echo("Error: No valid CDS regions found in GFF3", err=True)
+        raise typer.Exit(1)
+
+    typer.echo(f"Found {len(cds_regions)} genes in annotation", err=True)
+
+    # Build tasks
+    from mkado.vcf_workers import VcfBatchChunk, VcfBatchTask, process_vcf_chunk, process_vcf_gene
+
+    is_aggregate = (use_asymptotic and aggregate) or alpha_tg or (use_imputed and aggregate)
+
+    tasks = [
+        VcfBatchTask(
+            gene_id=cds.gene_id,
+            transcript_id=cds.transcript_id,
+            chrom=cds.chrom,
+            exons=cds.exons,
+            strand=cds.strand,
+            phase=cds.phase,
+            vcf_path=vcf_file,
+            outgroup_vcf_path=outgroup_vcf,
+            ref_fasta_path=ref,
+            code_table=code_table_id,
+            min_freq=min_freq,
+            no_singletons=no_singletons,
+            use_asymptotic=use_asymptotic and not aggregate,
+            bins=bins,
+            bootstrap=bootstrap,
+            use_imputed=use_imputed and not aggregate,
+            imputed_cutoff=imputed_cutoff,
+            extract_only=is_aggregate or (gene is None and not use_asymptotic and not use_imputed),
+        )
+        for cds in cds_regions
+    ]
+
+    # Single-gene mode
+    if gene and len(tasks) == 1:
+        tasks[0].extract_only = False
+        if not use_asymptotic and not use_imputed:
+            tasks[0].extract_only = False
+
+    # Determine workers
+    num_workers = get_worker_count(workers, len(tasks))
+
+    # Run parallel processing
+    worker_results: list[WorkerResult] = []
+    batch_warnings: list[str] = []
+
+    if num_workers == 1:
+        with create_rainbow_progress() as progress:
+            task_id = progress.add_task("Processing genes", total=len(tasks))
+            for task in tasks:
+                wr = process_vcf_gene(task)
+                if wr.error:
+                    batch_warnings.append(wr.error)
+                elif wr.warning:
+                    batch_warnings.append(f"Warning: {wr.warning}")
+                if wr.result is not None:
+                    worker_results.append(wr)
+                progress.advance(task_id)
+    else:
+        import math
+        from concurrent.futures import ProcessPoolExecutor, as_completed
+
+        # Partition tasks into chunks (one per worker) so each worker opens
+        # VCF/FASTA handles only once and reuses them for all its genes.
+        chunk_size = math.ceil(len(tasks) / num_workers)
+        chunks = [
+            VcfBatchChunk(tasks=tasks[i : i + chunk_size])
+            for i in range(0, len(tasks), chunk_size)
+        ]
+
+        with ProcessPoolExecutor(max_workers=num_workers) as executor:
+            futures = {executor.submit(process_vcf_chunk, c): c for c in chunks}
+            with create_rainbow_progress() as progress:
+                task_id = progress.add_task("Processing genes", total=len(tasks))
+                for future in as_completed(futures):
+                    chunk = futures[future]
+                    try:
+                        chunk_results = future.result()
+                        for wr in chunk_results:
+                            if wr.error:
+                                batch_warnings.append(wr.error)
+                            elif wr.warning:
+                                batch_warnings.append(f"Warning: {wr.warning}")
+                            if wr.result is not None:
+                                worker_results.append(wr)
+                    except Exception as e:
+                        for t in chunk.tasks:
+                            batch_warnings.append(f"Error processing {t.gene_id}: {e}")
+                    progress.advance(task_id, advance=len(chunk.tasks))
+
+    for w in batch_warnings:
+        typer.echo(w, err=True)
+
+    if not worker_results:
+        typer.echo("No results to display", err=True)
+        raise typer.Exit(1)
+
+    # Single gene mode: output single result
+    if gene and len(worker_results) == 1:
+        typer.echo(format_result(worker_results[0].result, fmt))
+        return
+
+    # Alpha TG mode
+    if alpha_tg:
+        from mkado.analysis.alpha_tg import alpha_tg_from_gene_data
+        from mkado.analysis.asymptotic import PolymorphismData
+
+        gene_data_list: list[PolymorphismData] = _collect_gene_data(
+            worker_results, "alpha-TG"
+        )
+        if gene_data_list:
+            result = alpha_tg_from_gene_data(
+                gene_data=gene_data_list,
+                bootstrap_replicates=bootstrap,
+            )
+            typer.echo(format_result(result, fmt))
+        else:
+            typer.echo("No valid gene data extracted", err=True)
+        return
+
+    # Aggregated asymptotic mode
+    if use_asymptotic and aggregate:
+        from mkado.analysis.asymptotic import PolymorphismData
+
+        gene_data_list = _collect_gene_data(worker_results, "aggregated asymptotic")
+        if gene_data_list:
+            result = asymptotic_mk_test_aggregated(
+                gene_data=gene_data_list,
+                num_bins=bins,
+                ci_replicates=bootstrap * 100,
+                frequency_cutoffs=frequency_cutoffs,
+            )
+            typer.echo(format_result(result, fmt))
+            if plot_asymptotic:
+                from mkado.io.plotting import create_asymptotic_plot
+
+                try:
+                    create_asymptotic_plot(result, plot_asymptotic)
+                    typer.echo(f"Asymptotic plot saved to {plot_asymptotic}", err=True)
+                except Exception as e:
+                    typer.echo(f"Could not generate asymptotic plot: {e}", err=True)
+        else:
+            typer.echo("No valid gene data extracted", err=True)
+        return
+
+    # Aggregated imputed mode
+    if use_imputed and aggregate:
+        from mkado.analysis.asymptotic import PolymorphismData
+        from mkado.analysis.imputed import imputed_mk_test_multi
+
+        gene_data_list = _collect_gene_data(worker_results, "aggregated imputed")
+        if gene_data_list:
+            result = imputed_mk_test_multi(
+                gene_data=gene_data_list,
+                cutoff=imputed_cutoff,
+            )
+            typer.echo(format_result(result, fmt))
+        else:
+            typer.echo("No valid gene data extracted", err=True)
+        return
+
+    # Per-gene mode: produce standard MK results from PolymorphismData
+    from mkado.analysis.asymptotic import PolymorphismData
+    from mkado.analysis.mk_test import mk_test_from_counts
+
+    results_list = []
+    for wr in worker_results:
+        if isinstance(wr.result, PolymorphismData):
+            pn = sum(1 for _, t in wr.result.polymorphisms if t == "N")
+            ps = sum(1 for _, t in wr.result.polymorphisms if t == "S")
+            mk_result = mk_test_from_counts(
+                dn=wr.result.dn,
+                ds=wr.result.ds,
+                pn=pn,
+                ps=ps,
+            )
+            results_list.append((wr.gene_id, mk_result))
+        else:
+            results_list.append((wr.gene_id, wr.result))
+
+    if results_list:
+        adjusted_pvalues = compute_adjusted_pvalues(results_list)
+        typer.echo(format_batch_results(results_list, fmt, adjusted_pvalues))
+
+        # Generate volcano plot if requested
+        if volcano:
+            from mkado.io.plotting import create_volcano_plot
+
+            try:
+                create_volcano_plot(results_list, volcano)
+                typer.echo(f"Volcano plot saved to {volcano}", err=True)
+            except Exception as e:
+                typer.echo(f"Could not generate volcano plot: {e}", err=True)
+
+        # Warn if --plot-asymptotic was used without --asymptotic
+        if plot_asymptotic and not use_asymptotic:
+            typer.echo(
+                "Warning: --plot-asymptotic requires --asymptotic/-a flag (ignored)",
+                err=True,
+            )
+    else:
+        typer.echo("No results to display", err=True)
 
 
 if __name__ == "__main__":

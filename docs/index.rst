@@ -16,6 +16,7 @@ Features
 - **Imputed MK test**: Corrects for slightly deleterious mutations by imputation (`Murga-Moreno et al. 2022`_)
 - **Tarone-Greenland α_TG**: Weighted multi-gene estimator (`Stoletzki & Eyre-Walker 2011`_)
 - **Alternate genetic codes**: Support for 24 NCBI genetic code tables (mitochondrial, plastid, etc.)
+- **VCF input**: Go directly from VCF + reference + GFF3 to MK test results
 - **Batch processing**: Process multiple genes with parallel execution
 - **Volcano plots**: Visualize batch results with publication-ready volcano plots
 - **Multiple output formats**: Pretty-print, TSV, and JSON
@@ -34,6 +35,9 @@ Quick Example
    # Batch process a directory
    mkado batch alignments/ -i "dmel" -o "dsim"
 
+   # Directly from VCF files
+   mkado vcf --vcf pop.vcf.gz --outgroup-vcf out.vcf.gz --ref genome.fa --gff genes.gff3
+
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
@@ -41,6 +45,7 @@ Quick Example
    installation
    tutorial
    batch-workflow
+   vcf-input
    asymptotic
    imputed
    alpha-tg
