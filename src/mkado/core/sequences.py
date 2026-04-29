@@ -250,9 +250,7 @@ class SequenceSet:
 
         return {codon: count / total for codon, count in counts.items()}
 
-    def derived_allele_frequency(
-        self, codon_index: int, ancestral_codon: str
-    ) -> float | None:
+    def derived_allele_frequency(self, codon_index: int, ancestral_codon: str) -> float | None:
         """Calculate the derived allele frequency at a codon position.
 
         Args:

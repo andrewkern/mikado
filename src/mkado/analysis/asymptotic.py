@@ -175,13 +175,11 @@ class AsymptoticMKResult:
             omega_a_str = f"{self.omega_a:.4f}" if self.omega_a is not None else "N/A"
             omega_na_str = f"{self.omega_na:.4f}" if self.omega_na is not None else "N/A"
             lines.append(
-                f"  omega: {self.omega:.4f} "
-                f"(omega_a={omega_a_str}, omega_na={omega_na_str})"
+                f"  omega: {self.omega:.4f} (omega_a={omega_a_str}, omega_na={omega_na_str})"
             )
             if self.omega_a_ci_low is not None and self.omega_a_ci_high is not None:
                 lines.append(
-                    f"    omega_a 95% CI:  ({self.omega_a_ci_low:.4f}, "
-                    f"{self.omega_a_ci_high:.4f})"
+                    f"    omega_a 95% CI:  ({self.omega_a_ci_low:.4f}, {self.omega_a_ci_high:.4f})"
                 )
             if self.omega_na_ci_low is not None and self.omega_na_ci_high is not None:
                 lines.append(
@@ -197,8 +195,7 @@ class AsymptoticMKResult:
             )
         else:
             lines.append(
-                f"  Fit ({self.model_type}): α(x) = {self.fit_a:.4f} + "
-                f"{self.fit_b:.4f} * x"
+                f"  Fit ({self.model_type}): α(x) = {self.fit_a:.4f} + {self.fit_b:.4f} * x"
             )
         return "\n".join(lines)
 

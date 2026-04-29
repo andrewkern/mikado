@@ -20,7 +20,6 @@ from mkado.analysis.mk_test import mk_test, mk_test_from_counts
 from mkado.analysis.polarized import polarized_mk_test
 from mkado.analysis.statistics import omega_decomposition
 from mkado.core.alignment import AlignedPair
-from mkado.core.codons import DEFAULT_CODE
 from mkado.core.sequences import Sequence, SequenceSet
 
 

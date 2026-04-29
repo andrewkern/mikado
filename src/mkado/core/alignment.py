@@ -158,9 +158,7 @@ class AlignedPair:
         ln = (3.0 * used) - ls
         return (ln, ls)
 
-    def classify_fixed_difference(
-        self, codon_index: int
-    ) -> tuple[int, int] | None:
+    def classify_fixed_difference(self, codon_index: int) -> tuple[int, int] | None:
         """Classify a fixed difference as synonymous/non-synonymous.
 
         Uses the shortest mutational path to count the minimum number of
@@ -195,9 +193,7 @@ class AlignedPair:
 
         return (nonsyn, syn)
 
-    def classify_polymorphism(
-        self, codon_index: int
-    ) -> tuple[int, int] | None:
+    def classify_polymorphism(self, codon_index: int) -> tuple[int, int] | None:
         """Classify a polymorphism as synonymous/non-synonymous.
 
         Args:
@@ -246,9 +242,7 @@ class AlignedPair:
 
         return (total_nonsyn, total_syn)
 
-    def classify_polymorphism_pooled(
-        self, codon_index: int
-    ) -> tuple[int, int] | None:
+    def classify_polymorphism_pooled(self, codon_index: int) -> tuple[int, int] | None:
         """Classify a polymorphism using codons from both populations.
 
         This follows the libsequence convention of using all unique codons
@@ -318,9 +312,7 @@ class PolarizedAlignedPair(AlignedPair):
 
     outgroup2: SequenceSet | None = None
 
-    def polarize_fixed_difference(
-        self, codon_index: int
-    ) -> tuple[str, tuple[int, int]] | None:
+    def polarize_fixed_difference(self, codon_index: int) -> tuple[str, tuple[int, int]] | None:
         """Polarize a fixed difference to determine which lineage changed.
 
         Uses the second outgroup to determine the ancestral state.
@@ -373,9 +365,7 @@ class PolarizedAlignedPair(AlignedPair):
 
         return (lineage, (nonsyn, syn))
 
-    def polarize_ingroup_polymorphism(
-        self, codon_index: int
-    ) -> tuple[int, int] | None:
+    def polarize_ingroup_polymorphism(self, codon_index: int) -> tuple[int, int] | None:
         """Polarize and classify an ingroup polymorphism.
 
         Uses outgroup2 to determine if the polymorphism arose on the ingroup

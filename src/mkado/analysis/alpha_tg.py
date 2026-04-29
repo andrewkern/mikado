@@ -107,13 +107,11 @@ class AlphaTGResult:
             )
             if self.omega_ci_low is not None and self.omega_ci_high is not None:
                 lines.append(
-                    f"    omega 95% CI:    ({self.omega_ci_low:.4f}, "
-                    f"{self.omega_ci_high:.4f})"
+                    f"    omega 95% CI:    ({self.omega_ci_low:.4f}, {self.omega_ci_high:.4f})"
                 )
             if self.omega_a_ci_low is not None and self.omega_a_ci_high is not None:
                 lines.append(
-                    f"    omega_a 95% CI:  ({self.omega_a_ci_low:.4f}, "
-                    f"{self.omega_a_ci_high:.4f})"
+                    f"    omega_a 95% CI:  ({self.omega_a_ci_low:.4f}, {self.omega_a_ci_high:.4f})"
                 )
             if self.omega_na_ci_low is not None and self.omega_na_ci_high is not None:
                 lines.append(
@@ -199,12 +197,8 @@ def alpha_tg_from_gene_data(
     # Calculate totals
     dn_total = sum(g.dn for g in gene_data)
     ds_total = sum(g.ds for g in gene_data)
-    pn_total = sum(
-        sum(1 for _, ptype in g.polymorphisms if ptype == "N") for g in gene_data
-    )
-    ps_total = sum(
-        sum(1 for _, ptype in g.polymorphisms if ptype == "S") for g in gene_data
-    )
+    pn_total = sum(sum(1 for _, ptype in g.polymorphisms if ptype == "N") for g in gene_data)
+    ps_total = sum(sum(1 for _, ptype in g.polymorphisms if ptype == "S") for g in gene_data)
     num_genes = len(gene_data)
 
     ln_total, ls_total = sum_site_totals(gene_data)
@@ -279,9 +273,7 @@ def alpha_tg_from_gene_data(
         omega_a_ci_low = omega_a_ci_high = None
         omega_na_ci_low = omega_na_ci_high = None
 
-    omega, omega_a, omega_na = omega_decomposition(
-        dn_total, ds_total, ln_total, ls_total, alpha_tg
-    )
+    omega, omega_a, omega_na = omega_decomposition(dn_total, ds_total, ln_total, ls_total, alpha_tg)
 
     return AlphaTGResult(
         alpha_tg=alpha_tg,

@@ -52,10 +52,7 @@ def _omega_a_na_ci_tsv_columns(
 
 def _omega_tsv_columns(result: MKResult | PolarizedMKResult) -> str:
     """Tab-separated ``Ln\\tLs\\tomega`` for omega-only result types (MK, polarized)."""
-    return (
-        f"{_fmt_optional(result.ln)}\t{_fmt_optional(result.ls)}\t"
-        f"{_fmt_optional(result.omega)}"
-    )
+    return f"{_fmt_optional(result.ln)}\t{_fmt_optional(result.ls)}\t{_fmt_optional(result.omega)}"
 
 
 def format_result(
@@ -84,7 +81,9 @@ def format_result(
         raise ValueError(f"Unknown format: {format}")
 
 
-def _format_tsv(result: MKResult | PolarizedMKResult | AsymptoticMKResult | AlphaTGResult | ImputedMKResult) -> str:
+def _format_tsv(
+    result: MKResult | PolarizedMKResult | AsymptoticMKResult | AlphaTGResult | ImputedMKResult,
+) -> str:
     """Format results as tab-separated values."""
     from mkado.analysis.alpha_tg import AlphaTGResult
     from mkado.analysis.asymptotic import AsymptoticMKResult
