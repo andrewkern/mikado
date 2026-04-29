@@ -124,6 +124,10 @@ class AsymptoticMKResult:
     """Adaptive component ``alpha_asymptotic * omega``."""
     omega_na: float | None = None
     """Non-adaptive component ``(1 - alpha_asymptotic) * omega``."""
+    ci_method: str = "monte-carlo"
+    """Method used to compute ``ci_low``/``ci_high``: ``"monte-carlo"`` samples
+    parameters from the curve-fit covariance matrix; ``"bootstrap"`` resamples
+    polymorphisms with replacement and refits per replicate."""
 
     # Dn, Ds, Ln, Ls are constants under the asymptotic Monte Carlo procedure,
     # so omega has no sampling distribution. The CIs on omega_a and omega_na
@@ -164,7 +168,7 @@ class AsymptoticMKResult:
         lines = [
             "Asymptotic MK Test Results:",
             f"  Asymptotic α: {self.alpha_asymptotic:.4f} "
-            f"(95% CI: {self.ci_low:.4f} - {self.ci_high:.4f})",
+            f"(95% CI [{self.ci_method}]: {self.ci_low:.4f} - {self.ci_high:.4f})",
             f"  Divergence: Dn={self.dn}, Ds={self.ds}",
         ]
         if self.pn_total > 0 or self.ps_total > 0:
@@ -232,6 +236,7 @@ class AsymptoticMKResult:
         result["omega_a_ci_high"] = self.omega_a_ci_high
         result["omega_na_ci_low"] = self.omega_na_ci_low
         result["omega_na_ci_high"] = self.omega_na_ci_high
+        result["ci_method"] = self.ci_method
         return result
 
 
@@ -317,6 +322,94 @@ def _compute_ci_monte_carlo(
     ci_low = float(np.percentile(alpha_samples, 2.5))
     ci_high = float(np.percentile(alpha_samples, 97.5))
     return (ci_low, ci_high)
+
+
+def _compute_ci_bootstrap(
+    pooled_polymorphisms: list[tuple[float, str]],
+    dn: int,
+    ds: int,
+    bin_edges: np.ndarray,
+    bin_centers: np.ndarray,
+    num_bins: int,
+    model_func: Callable[..., np.ndarray],
+    p0: list[float],
+    bounds: tuple[list[float], list[float]],
+    frequency_cutoffs: tuple[float, float],
+    point_estimate: float,
+    n_replicates: int = 100,
+    seed: int = 42,
+) -> tuple[float, float]:
+    """Compute CI by case-resampling the pooled polymorphism list.
+
+    Each replicate draws ``len(pooled_polymorphisms)`` indices uniformly with
+    replacement, rebins, recomputes per-bin α(x), refits ``model_func`` on the
+    same model the point estimate selected, and evaluates at x=1. Replicates
+    where the fit fails or fewer than 3 valid bins remain are dropped. If
+    fewer than half of the replicates succeed, the CI degenerates to the
+    point estimate.
+    """
+    n = len(pooled_polymorphisms)
+    if n == 0 or dn == 0 or ds == 0 or n_replicates <= 0:
+        return (point_estimate, point_estimate)
+
+    # Vectorize: precompute frequency and is-N arrays once.
+    freqs = np.fromiter((f for f, _ in pooled_polymorphisms), dtype=float, count=n)
+    is_n = np.fromiter((t == "N" for _, t in pooled_polymorphisms), dtype=bool, count=n)
+
+    # Precompute per-polymorphism bin indices once.
+    bin_idx = np.searchsorted(bin_edges[1:], freqs, side="right")
+    np.clip(bin_idx, 0, num_bins - 1, out=bin_idx)
+
+    rng = np.random.default_rng(seed)
+    low_cut, high_cut = frequency_cutoffs
+    bin_in_window = (bin_centers >= low_cut) & (bin_centers <= high_cut)
+
+    bootstrap_alphas: list[float] = []
+    for _ in range(n_replicates):
+        sample = rng.integers(0, n, size=n)
+        sample_bins = bin_idx[sample]
+        sample_n = is_n[sample]
+        boot_pn = np.bincount(sample_bins[sample_n], minlength=num_bins)
+        boot_ps = np.bincount(sample_bins[~sample_n], minlength=num_bins)
+
+        # Per-bin alpha where boot_ps > 0 and inside the fitting window.
+        valid = (boot_ps > 0) & bin_in_window
+        if valid.sum() < 3:
+            # Fall back to full range if cutoffs are too restrictive (mirror point-estimate path).
+            valid = boot_ps > 0
+            if valid.sum() < 3:
+                continue
+        ratio = (ds / dn) * (boot_pn[valid] / boot_ps[valid])
+        boot_alphas = 1.0 - ratio
+        boot_x = bin_centers[valid]
+
+        try:
+            popt_boot, _ = optimize.curve_fit(
+                model_func,
+                boot_x,
+                boot_alphas,
+                p0=p0,
+                bounds=bounds,
+                maxfev=5000,
+            )
+            alpha_at_1 = float(model_func(np.array([1.0]), *popt_boot)[0])
+            if np.isfinite(alpha_at_1):
+                bootstrap_alphas.append(alpha_at_1)
+        except (RuntimeError, ValueError):
+            continue
+
+    if len(bootstrap_alphas) < n_replicates // 2:
+        logger.debug(
+            "Bootstrap CI: only %d/%d replicates succeeded; falling back to point estimate",
+            len(bootstrap_alphas),
+            n_replicates,
+        )
+        return (point_estimate, point_estimate)
+
+    return (
+        float(np.percentile(bootstrap_alphas, 2.5)),
+        float(np.percentile(bootstrap_alphas, 97.5)),
+    )
 
 
 def _compute_aic(n: int, rss: float, k: int) -> float:
@@ -506,6 +599,8 @@ def asymptotic_mk_test_aggregated(
     num_bins: int = 20,
     ci_replicates: int = 10000,
     frequency_cutoffs: tuple[float, float] = (0.1, 0.9),
+    ci_method: str = "monte-carlo",
+    seed: int = 42,
 ) -> AsymptoticMKResult:
     """Genome-wide asymptotic MK test on aggregated data.
 
@@ -516,12 +611,22 @@ def asymptotic_mk_test_aggregated(
     Args:
         gene_data: List of PolymorphismData from individual genes
         num_bins: Number of frequency bins (default 20)
-        ci_replicates: Number of Monte Carlo replicates for CI (default 10000)
+        ci_replicates: Number of CI replicates. For ``ci_method="monte-carlo"``
+            (default), parameters are sampled from the curve-fit covariance —
+            pass ~10000. For ``ci_method="bootstrap"``, each replicate refits
+            the curve so 100-500 is typical.
         frequency_cutoffs: (low, high) frequency range for fitting (default 0.1-0.9)
+        ci_method: ``"monte-carlo"`` (default, parametric MVN sampling from the
+            curve-fit covariance) or ``"bootstrap"`` (case-resampling of the
+            pooled polymorphism list with replacement, refit per replicate).
+        seed: Random seed for reproducibility (default 42).
 
     Returns:
         AsymptoticMKResult with aggregated analysis
     """
+    if ci_method not in ("monte-carlo", "bootstrap"):
+        raise ValueError(f"ci_method must be 'monte-carlo' or 'bootstrap', got {ci_method!r}")
+
     # Aggregate the data
     agg = aggregate_polymorphism_data(gene_data, num_bins)
 
@@ -567,6 +672,7 @@ def asymptotic_mk_test_aggregated(
             num_genes=agg.num_genes,
             pn_total=pn_total,
             ps_total=ps_total,
+            ci_method=ci_method,
         )
         return _attach_omega(result, agg.ln_total, agg.ls_total)
 
@@ -691,8 +797,45 @@ def asymptotic_mk_test_aggregated(
             num_genes=agg.num_genes,
             pn_total=pn_total,
             ps_total=ps_total,
+            ci_method=ci_method,
         )
         return _attach_omega(result, agg.ln_total, agg.ls_total)
+
+    if ci_method == "bootstrap":
+        # Hold to the model the AIC step selected so the CI is comparable to MC.
+        pooled = [p for g in gene_data for p in g.polymorphisms]
+        if use_exponential:
+            ci_low_exp, ci_high_exp = _compute_ci_bootstrap(
+                pooled,
+                dn,
+                ds,
+                bin_edges,
+                bin_centers,
+                num_bins,
+                _exponential_model,
+                p0_exp,
+                bounds_exp,
+                frequency_cutoffs,
+                exp_alpha,
+                n_replicates=ci_replicates,
+                seed=seed,
+            )
+        else:
+            ci_low_lin, ci_high_lin = _compute_ci_bootstrap(
+                pooled,
+                dn,
+                ds,
+                bin_edges,
+                bin_centers,
+                num_bins,
+                _linear_model,
+                p0_lin,
+                bounds_lin,
+                frequency_cutoffs,
+                lin_alpha,
+                n_replicates=ci_replicates,
+                seed=seed,
+            )
 
     if use_exponential:
         a, b, c = exp_popt
@@ -712,6 +855,7 @@ def asymptotic_mk_test_aggregated(
             model_type="exponential",
             pn_total=pn_total,
             ps_total=ps_total,
+            ci_method=ci_method,
         )
     else:
         a_lin, b_lin = lin_popt
@@ -731,6 +875,7 @@ def asymptotic_mk_test_aggregated(
             model_type="linear",
             pn_total=pn_total,
             ps_total=ps_total,
+            ci_method=ci_method,
         )
     return _attach_omega(result, agg.ln_total, agg.ls_total)
 
@@ -891,6 +1036,7 @@ def asymptotic_mk_test(
             ci_high=simple_alpha or 0.0,
             dn=dn,
             ds=ds,
+            ci_method="bootstrap",
         )
         return _attach_omega(result, ln_total, ls_total)
 
@@ -998,5 +1144,6 @@ def asymptotic_mk_test(
         fit_c=float(c),
         dn=dn,
         ds=ds,
+        ci_method="bootstrap",
     )
     return _attach_omega(result, ln_total, ls_total)

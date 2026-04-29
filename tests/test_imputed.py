@@ -69,17 +69,15 @@ class TestImputedMKTest:
         """Verify d + b + f sums to 1 - alpha when m0/mi provided."""
         gene = PolymorphismData(
             polymorphisms=(
-                [(0.05, "N")] * 5
-                + [(0.50, "N")] * 5
-                + [(0.10, "S")] * 4
-                + [(0.50, "S")] * 8
+                [(0.05, "N")] * 5 + [(0.50, "N")] * 5 + [(0.10, "S")] * 4 + [(0.50, "S")] * 8
             ),
             dn=10,
             ds=6,
         )
 
-        result = imputed_mk_test(gene, cutoff=0.15, num_synonymous_sites=100.0,
-                                 num_nonsynonymous_sites=300.0)
+        result = imputed_mk_test(
+            gene, cutoff=0.15, num_synonymous_sites=100.0, num_nonsynonymous_sites=300.0
+        )
 
         assert result.d is not None
         assert result.b is not None
@@ -106,9 +104,7 @@ class TestImputedMKTest:
         """Edge case: all synonymous polymorphisms are low-frequency."""
         gene = PolymorphismData(
             polymorphisms=(
-                [(0.05, "N")] * 3
-                + [(0.50, "N")] * 2
-                + [(0.10, "S")] * 4  # all below cutoff
+                [(0.05, "N")] * 3 + [(0.50, "N")] * 2 + [(0.10, "S")] * 4  # all below cutoff
             ),
             dn=5,
             ds=3,
@@ -123,10 +119,7 @@ class TestImputedMKTest:
     def test_all_polymorphisms_above_cutoff(self) -> None:
         """When all polymorphisms are high-frequency, pwd should be 0."""
         gene = PolymorphismData(
-            polymorphisms=(
-                [(0.50, "N")] * 4
-                + [(0.60, "S")] * 5
-            ),
+            polymorphisms=([(0.50, "N")] * 4 + [(0.60, "S")] * 5),
             dn=6,
             ds=4,
         )
@@ -213,20 +206,14 @@ class TestImputedMKTestMulti:
         """Verify pooled results match manually aggregated data."""
         gene1 = PolymorphismData(
             polymorphisms=(
-                [(0.05, "N")] * 3
-                + [(0.50, "N")] * 2
-                + [(0.10, "S")] * 2
-                + [(0.40, "S")] * 4
+                [(0.05, "N")] * 3 + [(0.50, "N")] * 2 + [(0.10, "S")] * 2 + [(0.40, "S")] * 4
             ),
             dn=5,
             ds=3,
         )
         gene2 = PolymorphismData(
             polymorphisms=(
-                [(0.08, "N")] * 2
-                + [(0.60, "N")] * 3
-                + [(0.12, "S")] * 1
-                + [(0.50, "S")] * 3
+                [(0.08, "N")] * 2 + [(0.60, "N")] * 3 + [(0.12, "S")] * 1 + [(0.50, "S")] * 3
             ),
             dn=4,
             ds=2,
@@ -381,13 +368,15 @@ class TestImputedMKResult:
 
         assert (
             "Dn\tDs\tPn\tPs\tPwd\tPn_neutral\talpha\tp_value\tcutoff\t"
-            "Ln\tLs\tomega\tomega_a\tomega_na"
+            "Ln\tLs\tomega\tomega_a\tomega_na\t"
+            "alpha_CI_low\talpha_CI_high\t"
+            "omega_a_CI_low\tomega_a_CI_high\tomega_na_CI_low\tomega_na_CI_high\tci_method"
         ) == header
         fields = values.split("\t")
-        assert fields[0] == "7"   # Dn
-        assert fields[1] == "5"   # Ds
+        assert fields[0] == "7"  # Dn
+        assert fields[1] == "5"  # Ds
         assert fields[2] == "10"  # Pn
-        assert fields[3] == "9"   # Ps
+        assert fields[3] == "9"  # Ps
         assert fields[4] == "4.00"  # Pwd
         assert fields[5] == "6.00"  # Pn_neutral
         assert fields[6] == "0.520000"  # alpha
@@ -415,3 +404,114 @@ class TestImputedMKIntegration:
         assert result.pwd >= 0
         assert result.pn_neutral >= 0
         assert result.cutoff == 0.15
+
+
+def _imputed_fixture() -> PolymorphismData:
+    """Fixture with both low- and high-frequency polymorphisms for imputed bootstrap."""
+    return PolymorphismData(
+        polymorphisms=(
+            [(0.05, "N")] * 7 + [(0.50, "N")] * 4 + [(0.10, "S")] * 6 + [(0.50, "S")] * 11
+        ),
+        dn=10,
+        ds=8,
+        ln=300.0,
+        ls=100.0,
+    )
+
+
+class TestImputedBootstrapCi:
+    """Tests for the bootstrap CI on imputed_mk_test."""
+
+    def test_n_bootstrap_zero_preserves_legacy_output(self) -> None:
+        """n_bootstrap=0 (default) leaves CI fields None and preserves point estimates."""
+        gene = _imputed_fixture()
+        legacy = imputed_mk_test(gene, cutoff=0.15)
+        with_arg = imputed_mk_test(gene, cutoff=0.15, n_bootstrap=0)
+
+        # Point estimates byte-identical
+        assert legacy.alpha == with_arg.alpha
+        assert legacy.pwd == with_arg.pwd
+        assert legacy.pn_neutral == with_arg.pn_neutral
+        # No CI fields populated
+        assert legacy.alpha_ci_low is None
+        assert legacy.alpha_ci_high is None
+        assert legacy.ci_method is None
+        assert with_arg.alpha_ci_low is None
+        assert with_arg.ci_method is None
+
+    def test_bootstrap_populates_ci_fields(self) -> None:
+        gene = _imputed_fixture()
+        result = imputed_mk_test(gene, cutoff=0.15, n_bootstrap=200, seed=42)
+        assert result.alpha_ci_low is not None
+        assert result.alpha_ci_high is not None
+        assert result.alpha_ci_low <= result.alpha_ci_high
+        assert result.ci_method == "bootstrap"
+
+    def test_bootstrap_brackets_alpha(self) -> None:
+        """Bootstrap CI should bracket the point estimate."""
+        gene = _imputed_fixture()
+        result = imputed_mk_test(gene, cutoff=0.15, n_bootstrap=500, seed=42)
+        assert result.alpha is not None
+        assert result.alpha_ci_low <= result.alpha <= result.alpha_ci_high
+
+    def test_bootstrap_reproducibility_with_seed(self) -> None:
+        gene = _imputed_fixture()
+        r1 = imputed_mk_test(gene, cutoff=0.15, n_bootstrap=100, seed=42)
+        r2 = imputed_mk_test(gene, cutoff=0.15, n_bootstrap=100, seed=42)
+        assert r1.alpha_ci_low == r2.alpha_ci_low
+        assert r1.alpha_ci_high == r2.alpha_ci_high
+
+    def test_bootstrap_to_dict_includes_ci_fields(self) -> None:
+        gene = _imputed_fixture()
+        result = imputed_mk_test(gene, cutoff=0.15, n_bootstrap=100, seed=42)
+        d = result.to_dict()
+        assert "alpha_ci_low" in d
+        assert "alpha_ci_high" in d
+        assert "ci_method" in d
+        assert d["ci_method"] == "bootstrap"
+
+    def test_bootstrap_omega_a_ci_derived_from_alpha_ci(self) -> None:
+        """omega_a/omega_na CI should be the alpha CI scaled by omega (mirrors AsymptoticMKResult)."""
+        gene = _imputed_fixture()
+        result = imputed_mk_test(gene, cutoff=0.15, n_bootstrap=100, seed=42)
+        assert result.omega is not None
+        assert result.omega_a_ci_low is not None
+        # omega_a_ci_low = alpha_ci_low * omega
+        assert result.omega_a_ci_low == pytest.approx(result.alpha_ci_low * result.omega)
+        assert result.omega_a_ci_high == pytest.approx(result.alpha_ci_high * result.omega)
+        # omega_na percentiles flip: omega_na_ci_low uses (1 - alpha_ci_high)
+        assert result.omega_na_ci_low == pytest.approx((1.0 - result.alpha_ci_high) * result.omega)
+        assert result.omega_na_ci_high == pytest.approx((1.0 - result.alpha_ci_low) * result.omega)
+
+    def test_multi_n_bootstrap_zero_preserves_legacy(self) -> None:
+        """imputed_mk_test_multi with n_bootstrap=0 preserves legacy behavior."""
+        gene1 = _imputed_fixture()
+        gene2 = PolymorphismData(
+            polymorphisms=[(0.05, "N")] * 3 + [(0.4, "S")] * 5,
+            dn=4,
+            ds=3,
+            ln=200.0,
+            ls=70.0,
+        )
+        legacy = imputed_mk_test_multi([gene1, gene2], cutoff=0.15)
+        with_arg = imputed_mk_test_multi([gene1, gene2], cutoff=0.15, n_bootstrap=0)
+        assert legacy.alpha == with_arg.alpha
+        assert legacy.alpha_ci_low is None
+        assert with_arg.alpha_ci_low is None
+
+    def test_multi_bootstrap_populates_ci(self) -> None:
+        gene1 = _imputed_fixture()
+        gene2 = PolymorphismData(
+            polymorphisms=[(0.05, "N")] * 3
+            + [(0.5, "N")] * 2
+            + [(0.4, "S")] * 5
+            + [(0.5, "S")] * 3,
+            dn=4,
+            ds=3,
+            ln=200.0,
+            ls=70.0,
+        )
+        result = imputed_mk_test_multi([gene1, gene2], cutoff=0.15, n_bootstrap=200, seed=42)
+        assert result.alpha_ci_low is not None
+        assert result.alpha_ci_high is not None
+        assert result.ci_method == "bootstrap"

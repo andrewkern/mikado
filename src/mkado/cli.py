@@ -61,6 +61,36 @@ OutputOption = Annotated[
     ),
 ]
 
+CIMethodOption = Annotated[
+    str,
+    typer.Option(
+        "--ci-method",
+        help="CI method: 'monte-carlo' (default, parametric MVN sampling) or "
+        "'bootstrap' (case-resampling). Meaningful for --asymptotic --aggregate; "
+        "ignored elsewhere. Imputed CI is enabled automatically when --bootstrap > 0.",
+    ),
+]
+
+
+def validate_ci_method(ci_method: str) -> None:
+    """Reject any ``--ci-method`` value other than the two supported strings."""
+    if ci_method not in ("monte-carlo", "bootstrap"):
+        typer.echo(
+            f"Error: Invalid --ci-method '{ci_method}'. Use 'monte-carlo' or 'bootstrap'.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+
+def resolve_ci_replicates(bootstrap: int, ci_method: str) -> int:
+    """Map ``--bootstrap`` to ``ci_replicates`` for the chosen CI method.
+
+    MC samples params from a covariance matrix (cheap, ~10000×); bootstrap
+    refits the curve per replicate (expensive, ~100×). The 100× factor matches
+    the cost ratio between the two paths.
+    """
+    return bootstrap * 100 if ci_method == "monte-carlo" else bootstrap
+
 
 def write_output(content: str, output_path: Path | None) -> None:
     """Write formatted result content to a file, or to stdout if no path given.
@@ -335,6 +365,7 @@ def test(
         int,
         typer.Option("--bootstrap", help="Bootstrap replicates for CI (asymptotic)"),
     ] = 100,
+    ci_method: CIMethodOption = "monte-carlo",
     # === Common options ===
     output_format: Annotated[
         str,
@@ -412,6 +443,8 @@ def test(
     if output_format not in ("pretty", "tsv", "json"):
         typer.echo(f"Error: Invalid format '{output_format}'.", err=True)
         raise typer.Exit(1)
+
+    validate_ci_method(ci_method)
 
     # Validate option compatibility
     if use_asymptotic and min_freq > 0.0:
@@ -549,7 +582,7 @@ def test(
                 pool_polymorphisms=pool_polymorphisms,
                 genetic_code=genetic_code,
             )
-            result = imputed_mk_test(poly_data, cutoff=imputed_cutoff)
+            result = imputed_mk_test(poly_data, cutoff=imputed_cutoff, n_bootstrap=bootstrap)
         elif polarize_match:
             outgroup2_seqs = all_seqs.filter_by_name(polarize_match)
             if len(outgroup2_seqs) == 0:
@@ -631,7 +664,7 @@ def test(
                 pool_polymorphisms=pool_polymorphisms,
                 genetic_code=genetic_code,
             )
-            result = imputed_mk_test(poly_data, cutoff=imputed_cutoff)
+            result = imputed_mk_test(poly_data, cutoff=imputed_cutoff, n_bootstrap=bootstrap)
         elif polarize_file:
             result = polarized_mk_test(
                 ingroup=fasta,
@@ -763,6 +796,7 @@ def batch(
         int,
         typer.Option("--bootstrap", help="Bootstrap replicates (asymptotic)"),
     ] = 100,
+    ci_method: CIMethodOption = "monte-carlo",
     freq_cutoffs: Annotated[
         str,
         typer.Option("--freq-cutoffs", help="Frequency range 'low,high' (asymptotic)"),
@@ -857,6 +891,8 @@ def batch(
         mkado batch alignments/ -i "dmel" -o "dsim" -w 8
         mkado batch genes/ --ingroup-pattern "*_in.fa" --outgroup-pattern "*_out.fa"
     """
+    validate_ci_method(ci_method)
+
     if output_format not in ("pretty", "tsv", "json"):
         typer.echo(f"Error: Invalid format '{output_format}'.", err=True)
         raise typer.Exit(1)
@@ -987,6 +1023,7 @@ def batch(
                 or alpha_tg
                 or (use_imputed and aggregate),
                 code_table=code_table_id,
+                ci_method=ci_method,
             )
             for f in alignment_files
         ]
@@ -1003,9 +1040,7 @@ def batch(
             for warning in warnings:
                 typer.echo(warning, err=True)
 
-            gene_data_list: list[PolymorphismData] = _collect_gene_data(
-                worker_results, "alpha-TG"
-            )
+            gene_data_list: list[PolymorphismData] = _collect_gene_data(worker_results, "alpha-TG")
 
             if gene_data_list:
                 result = alpha_tg_from_gene_data(
@@ -1033,11 +1068,13 @@ def batch(
             )
 
             if gene_data_list:
+                ci_replicates = resolve_ci_replicates(bootstrap, ci_method)
                 result = asymptotic_mk_test_aggregated(
                     gene_data=gene_data_list,
                     num_bins=bins,
-                    ci_replicates=bootstrap * 100,
+                    ci_replicates=ci_replicates,
                     frequency_cutoffs=frequency_cutoffs,
+                    ci_method=ci_method,
                 )
                 write_output(format_result(result, fmt), output)
 
@@ -1074,6 +1111,7 @@ def batch(
                 result = imputed_mk_test_multi(
                     gene_data=gene_data_list,
                     cutoff=imputed_cutoff,
+                    n_bootstrap=bootstrap,
                 )
                 write_output(format_result(result, fmt), output)
             else:
@@ -1189,9 +1227,7 @@ def batch(
             for warning in warnings:
                 typer.echo(warning, err=True)
 
-            gene_data_list: list[PolymorphismData] = _collect_gene_data(
-                worker_results, "alpha-TG"
-            )
+            gene_data_list: list[PolymorphismData] = _collect_gene_data(worker_results, "alpha-TG")
 
             if gene_data_list:
                 result = alpha_tg_from_gene_data(
@@ -1219,11 +1255,13 @@ def batch(
             )
 
             if gene_data_list:
+                ci_replicates = resolve_ci_replicates(bootstrap, ci_method)
                 result = asymptotic_mk_test_aggregated(
                     gene_data=gene_data_list,
                     num_bins=bins,
-                    ci_replicates=bootstrap * 100,
+                    ci_replicates=ci_replicates,
                     frequency_cutoffs=frequency_cutoffs,
+                    ci_method=ci_method,
                 )
                 write_output(format_result(result, fmt), output)
 
@@ -1260,6 +1298,7 @@ def batch(
                 result = imputed_mk_test_multi(
                     gene_data=gene_data_list,
                     cutoff=imputed_cutoff,
+                    n_bootstrap=bootstrap,
                 )
                 write_output(format_result(result, fmt), output)
             else:
@@ -1408,6 +1447,7 @@ def vcf(
         int,
         typer.Option("--bootstrap", help="Bootstrap replicates"),
     ] = 100,
+    ci_method: CIMethodOption = "monte-carlo",
     freq_cutoffs: Annotated[
         str,
         typer.Option("--freq-cutoffs", help="Frequency range 'low,high' (asymptotic)"),
@@ -1491,6 +1531,8 @@ def vcf(
     if output_format not in ("pretty", "tsv", "json"):
         typer.echo(f"Error: Invalid format '{output_format}'.", err=True)
         raise typer.Exit(1)
+
+    validate_ci_method(ci_method)
 
     # Validate file existence
     for path, name in [(vcf_file, "--vcf"), (ref, "--ref"), (gff, "--gff")]:
@@ -1603,6 +1645,7 @@ def vcf(
             use_imputed=use_imputed and not aggregate,
             imputed_cutoff=imputed_cutoff,
             extract_only=is_aggregate or (gene is None and not use_asymptotic and not use_imputed),
+            ci_method=ci_method,
         )
         for cds in cds_regions
     ]
@@ -1640,8 +1683,7 @@ def vcf(
         # VCF/FASTA handles only once and reuses them for all its genes.
         chunk_size = math.ceil(len(tasks) / num_workers)
         chunks = [
-            VcfBatchChunk(tasks=tasks[i : i + chunk_size])
-            for i in range(0, len(tasks), chunk_size)
+            VcfBatchChunk(tasks=tasks[i : i + chunk_size]) for i in range(0, len(tasks), chunk_size)
         ]
 
         with ProcessPoolExecutor(max_workers=num_workers) as executor:
@@ -1681,9 +1723,7 @@ def vcf(
         from mkado.analysis.alpha_tg import alpha_tg_from_gene_data
         from mkado.analysis.asymptotic import PolymorphismData
 
-        gene_data_list: list[PolymorphismData] = _collect_gene_data(
-            worker_results, "alpha-TG"
-        )
+        gene_data_list: list[PolymorphismData] = _collect_gene_data(worker_results, "alpha-TG")
         if gene_data_list:
             result = alpha_tg_from_gene_data(
                 gene_data=gene_data_list,
@@ -1700,11 +1740,13 @@ def vcf(
 
         gene_data_list = _collect_gene_data(worker_results, "aggregated asymptotic")
         if gene_data_list:
+            ci_replicates = resolve_ci_replicates(bootstrap, ci_method)
             result = asymptotic_mk_test_aggregated(
                 gene_data=gene_data_list,
                 num_bins=bins,
-                ci_replicates=bootstrap * 100,
+                ci_replicates=ci_replicates,
                 frequency_cutoffs=frequency_cutoffs,
+                ci_method=ci_method,
             )
             write_output(format_result(result, fmt), output)
             if plot_asymptotic:
@@ -1729,6 +1771,7 @@ def vcf(
             result = imputed_mk_test_multi(
                 gene_data=gene_data_list,
                 cutoff=imputed_cutoff,
+                n_bootstrap=bootstrap,
             )
             write_output(format_result(result, fmt), output)
         else:

@@ -93,15 +93,22 @@ def _format_tsv(
 
     if isinstance(result, ImputedMKResult):
         alpha_str = f"{result.alpha:.6f}" if result.alpha is not None else "NA"
+        ci_method_str = result.ci_method if result.ci_method is not None else "NA"
         header = (
             "Dn\tDs\tPn\tPs\tPwd\tPn_neutral\talpha\tp_value\tcutoff\t"
-            "Ln\tLs\tomega\tomega_a\tomega_na"
+            "Ln\tLs\tomega\tomega_a\tomega_na\t"
+            "alpha_CI_low\talpha_CI_high\t"
+            "omega_a_CI_low\tomega_a_CI_high\tomega_na_CI_low\tomega_na_CI_high\tci_method"
         )
         values = (
             f"{result.dn}\t{result.ds}\t{result.pn_total}\t{result.ps_total}\t"
             f"{result.pwd:.2f}\t{result.pn_neutral:.2f}\t{alpha_str}\t"
             f"{result.p_value:.6g}\t{result.cutoff}\t"
-            f"{_omega_full_tsv_columns(result)}"
+            f"{_omega_full_tsv_columns(result)}\t"
+            f"{_fmt_optional(result.alpha_ci_low)}\t{_fmt_optional(result.alpha_ci_high)}\t"
+            f"{_fmt_optional(result.omega_a_ci_low)}\t{_fmt_optional(result.omega_a_ci_high)}\t"
+            f"{_fmt_optional(result.omega_na_ci_low)}\t{_fmt_optional(result.omega_na_ci_high)}\t"
+            f"{ci_method_str}"
         )
         return f"{header}\n{values}"
 
@@ -143,7 +150,7 @@ def _format_tsv(
         return "\n".join(lines)
 
     elif isinstance(result, AsymptoticMKResult):
-        ci_cols = "\tomega_a_CI_low\tomega_a_CI_high\tomega_na_CI_low\tomega_na_CI_high"
+        ci_cols = "\tomega_a_CI_low\tomega_a_CI_high\tomega_na_CI_low\tomega_na_CI_high\tci_method"
         if result.num_genes > 0:
             # Aggregated result
             header = (
@@ -155,7 +162,7 @@ def _format_tsv(
                 f"{result.alpha_asymptotic:.6f}\t{result.ci_low:.6f}\t{result.ci_high:.6f}\t"
                 f"{result.model_type}\t{result.num_genes}\t"
                 f"{_omega_full_tsv_columns(result)}\t"
-                f"{_omega_a_na_ci_tsv_columns(result)}"
+                f"{_omega_a_na_ci_tsv_columns(result)}\t{result.ci_method}"
             )
         else:
             header = (
@@ -166,7 +173,7 @@ def _format_tsv(
                 f"{result.dn}\t{result.ds}\t{result.alpha_asymptotic:.6f}\t"
                 f"{result.ci_low:.6f}\t{result.ci_high:.6f}\t"
                 f"{_omega_full_tsv_columns(result)}\t"
-                f"{_omega_a_na_ci_tsv_columns(result)}"
+                f"{_omega_a_na_ci_tsv_columns(result)}\t{result.ci_method}"
             )
         return f"{header}\n{values}"
 
@@ -175,7 +182,7 @@ def _format_tsv(
             "Dn\tDs\tPn\tPs\talpha_TG\tNI_TG\tCI_low\tCI_high\tnum_genes\t"
             "Ln\tLs\tomega\tomega_a\tomega_na\t"
             "omega_CI_low\tomega_CI_high\t"
-            "omega_a_CI_low\tomega_a_CI_high\tomega_na_CI_low\tomega_na_CI_high"
+            "omega_a_CI_low\tomega_a_CI_high\tomega_na_CI_low\tomega_na_CI_high\tci_method"
         )
         values = (
             f"{result.dn_total}\t{result.ds_total}\t{result.pn_total}\t{result.ps_total}\t"
@@ -183,7 +190,7 @@ def _format_tsv(
             f"{result.num_genes}\t"
             f"{_omega_full_tsv_columns(result)}\t"
             f"{_fmt_optional(result.omega_ci_low)}\t{_fmt_optional(result.omega_ci_high)}\t"
-            f"{_omega_a_na_ci_tsv_columns(result)}"
+            f"{_omega_a_na_ci_tsv_columns(result)}\t{result.ci_method}"
         )
         return f"{header}\n{values}"
 
@@ -263,7 +270,7 @@ def format_batch_results(
             header = (
                 "gene\tDn\tDs\talpha_asymptotic\tCI_low\tCI_high\tmodel\t"
                 "Ln\tLs\tomega\tomega_a\tomega_na\t"
-                "omega_a_CI_low\tomega_a_CI_high\tomega_na_CI_low\tomega_na_CI_high"
+                "omega_a_CI_low\tomega_a_CI_high\tomega_na_CI_low\tomega_na_CI_high\tci_method"
             )
             lines = [header]
             for name, result in results:
@@ -273,7 +280,7 @@ def format_batch_results(
                         f"{result.alpha_asymptotic:.6f}\t{result.ci_low:.6f}\t"
                         f"{result.ci_high:.6f}\t{result.model_type}\t"
                         f"{_omega_full_tsv_columns(result)}\t"
-                        f"{_omega_a_na_ci_tsv_columns(result)}"
+                        f"{_omega_a_na_ci_tsv_columns(result)}\t{result.ci_method}"
                     )
             return "\n".join(lines)
 

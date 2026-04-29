@@ -11,10 +11,15 @@ increases power to detect positive selection at the gene level.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
+
+import numpy as np
 
 from mkado.analysis.asymptotic import PolymorphismData, sum_site_totals
 from mkado.analysis.statistics import fishers_exact, omega_decomposition
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -67,6 +72,42 @@ class ImputedMKResult:
     """Adaptive rate ``alpha * omega`` with imputed alpha (Gossmann, Keightley & Eyre-Walker 2012)."""
     omega_na: float | None = None
     """Non-adaptive component ``(1 - alpha) * omega``."""
+    alpha_ci_low: float | None = None
+    """Lower 95% bootstrap CI for ``alpha``. ``None`` when ``n_bootstrap=0``."""
+    alpha_ci_high: float | None = None
+    """Upper 95% bootstrap CI for ``alpha``."""
+    ci_method: str | None = None
+    """``"bootstrap"`` when CI was computed, ``None`` when ``n_bootstrap=0``."""
+
+    # omega_a/omega_na CIs are pure arithmetic transforms of the alpha CI scaled
+    # by the (constant) point-estimate omega; mirrors AsymptoticMKResult.
+    @property
+    def omega_a_ci_low(self) -> float | None:
+        """Lower 95% CI for ``omega_a`` = ``alpha_ci_low * omega``."""
+        if self.omega is None or self.alpha_ci_low is None:
+            return None
+        return self.alpha_ci_low * self.omega
+
+    @property
+    def omega_a_ci_high(self) -> float | None:
+        """Upper 95% CI for ``omega_a`` = ``alpha_ci_high * omega``."""
+        if self.omega is None or self.alpha_ci_high is None:
+            return None
+        return self.alpha_ci_high * self.omega
+
+    @property
+    def omega_na_ci_low(self) -> float | None:
+        """Lower 95% CI for ``omega_na`` = ``(1 - alpha_ci_high) * omega`` (flipped)."""
+        if self.omega is None or self.alpha_ci_high is None:
+            return None
+        return (1.0 - self.alpha_ci_high) * self.omega
+
+    @property
+    def omega_na_ci_high(self) -> float | None:
+        """Upper 95% CI for ``omega_na`` = ``(1 - alpha_ci_low) * omega``."""
+        if self.omega is None or self.alpha_ci_low is None:
+            return None
+        return (1.0 - self.alpha_ci_low) * self.omega
 
     def __str__(self) -> str:
         alpha_str = f"{self.alpha:.4f}" if self.alpha is not None else "N/A"
@@ -80,6 +121,11 @@ class ImputedMKResult:
             f"  Alpha (α):     {alpha_str}",
             f"  p-value:       {self.p_value:.4g}",
         ]
+        if self.alpha_ci_low is not None and self.alpha_ci_high is not None:
+            lines.append(
+                f"  Alpha 95% CI [{self.ci_method}]: "
+                f"({self.alpha_ci_low:.4f}, {self.alpha_ci_high:.4f})"
+            )
         if self.ln is not None and self.ls is not None:
             lines.append(f"  Sites:         Ln={self.ln:.2f}, Ls={self.ls:.2f}")
         if self.omega is not None:
@@ -89,6 +135,15 @@ class ImputedMKResult:
                 f"  omega:         {self.omega:.4f} "
                 f"(omega_a={omega_a_str}, omega_na={omega_na_str})"
             )
+            if self.omega_a_ci_low is not None and self.omega_a_ci_high is not None:
+                lines.append(
+                    f"    omega_a 95% CI:  ({self.omega_a_ci_low:.4f}, {self.omega_a_ci_high:.4f})"
+                )
+            if self.omega_na_ci_low is not None and self.omega_na_ci_high is not None:
+                lines.append(
+                    f"    omega_na 95% CI: ({self.omega_na_ci_low:.4f}, "
+                    f"{self.omega_na_ci_high:.4f})"
+                )
         if self.d is not None:
             lines.append(f"  DFE fractions: d={self.d:.4f}, b={self.b:.4f}, f={self.f:.4f}")
         return "\n".join(lines)
@@ -110,6 +165,13 @@ class ImputedMKResult:
             "omega": self.omega,
             "omega_a": self.omega_a,
             "omega_na": self.omega_na,
+            "alpha_ci_low": self.alpha_ci_low,
+            "alpha_ci_high": self.alpha_ci_high,
+            "ci_method": self.ci_method,
+            "omega_a_ci_low": self.omega_a_ci_low,
+            "omega_a_ci_high": self.omega_a_ci_high,
+            "omega_na_ci_low": self.omega_na_ci_low,
+            "omega_na_ci_high": self.omega_na_ci_high,
         }
         if self.d is not None:
             result["d"] = self.d
@@ -199,11 +261,58 @@ def _compute_imputed(
     )
 
 
+def _bootstrap_imputed_alpha(
+    polymorphisms: list[tuple[float, str]],
+    dn: int,
+    ds: int,
+    cutoff: float,
+    num_synonymous_sites: float | None,
+    num_nonsynonymous_sites: float | None,
+    n_replicates: int,
+    seed: int,
+) -> tuple[float, float] | None:
+    """Bootstrap CI on imputed alpha by case-resampling the polymorphism list.
+
+    Each replicate draws ``len(polymorphisms)`` indices uniformly with
+    replacement and reruns the imputed MK algorithm. Returns ``None`` if
+    no successful replicate yields a defined alpha.
+    """
+    n = len(polymorphisms)
+    if n == 0 or n_replicates <= 0:
+        return None
+
+    rng = np.random.default_rng(seed)
+    bootstrap_alphas: list[float] = []
+    for _ in range(n_replicates):
+        sample_idx = rng.integers(0, n, size=n)
+        boot = [polymorphisms[i] for i in sample_idx]
+        boot_result = _compute_imputed(
+            boot, dn, ds, cutoff, num_synonymous_sites, num_nonsynonymous_sites
+        )
+        if boot_result.alpha is not None:
+            bootstrap_alphas.append(boot_result.alpha)
+
+    if len(bootstrap_alphas) < n_replicates // 2:
+        logger.debug(
+            "Imputed bootstrap CI: only %d/%d replicates yielded defined alpha; skipping CI",
+            len(bootstrap_alphas),
+            n_replicates,
+        )
+        return None
+
+    return (
+        float(np.percentile(bootstrap_alphas, 2.5)),
+        float(np.percentile(bootstrap_alphas, 97.5)),
+    )
+
+
 def imputed_mk_test(
     gene_data: PolymorphismData,
     cutoff: float = 0.15,
     num_synonymous_sites: float | None = None,
     num_nonsynonymous_sites: float | None = None,
+    n_bootstrap: int = 0,
+    seed: int = 42,
 ) -> ImputedMKResult:
     """Perform the imputed McDonald-Kreitman test on a single gene.
 
@@ -219,13 +328,16 @@ def imputed_mk_test(
         cutoff: DAF cutoff separating low and high frequency (default 0.15)
         num_synonymous_sites: Number of synonymous sites (m0) for DFE fractions
         num_nonsynonymous_sites: Number of nonsynonymous sites (mi) for DFE fractions
+        n_bootstrap: Number of bootstrap replicates for the alpha CI. ``0`` (default)
+            disables CI computation and preserves byte-identical legacy output.
+        seed: Random seed for the bootstrap (default 42).
 
     Returns:
         ImputedMKResult with corrected alpha and optionally DFE fractions
     """
     ls = num_synonymous_sites if num_synonymous_sites is not None else gene_data.ls
     ln = num_nonsynonymous_sites if num_nonsynonymous_sites is not None else gene_data.ln
-    return _compute_imputed(
+    result = _compute_imputed(
         gene_data.polymorphisms,
         gene_data.dn,
         gene_data.ds,
@@ -233,6 +345,21 @@ def imputed_mk_test(
         ls,
         ln,
     )
+    if n_bootstrap > 0:
+        ci = _bootstrap_imputed_alpha(
+            gene_data.polymorphisms,
+            gene_data.dn,
+            gene_data.ds,
+            cutoff,
+            ls,
+            ln,
+            n_bootstrap,
+            seed,
+        )
+        if ci is not None:
+            result.alpha_ci_low, result.alpha_ci_high = ci
+            result.ci_method = "bootstrap"
+    return result
 
 
 def imputed_mk_test_multi(
@@ -240,6 +367,8 @@ def imputed_mk_test_multi(
     cutoff: float = 0.15,
     num_synonymous_sites: float | None = None,
     num_nonsynonymous_sites: float | None = None,
+    n_bootstrap: int = 0,
+    seed: int = 42,
 ) -> ImputedMKResult:
     """Perform the imputed MK test on pooled data from multiple genes.
 
@@ -251,6 +380,9 @@ def imputed_mk_test_multi(
         cutoff: DAF cutoff separating low and high frequency (default 0.15)
         num_synonymous_sites: Number of synonymous sites (m0) for DFE fractions
         num_nonsynonymous_sites: Number of nonsynonymous sites (mi) for DFE fractions
+        n_bootstrap: Number of bootstrap replicates for the alpha CI. ``0`` (default)
+            disables CI computation and preserves byte-identical legacy output.
+        seed: Random seed for the bootstrap (default 42).
 
     Returns:
         ImputedMKResult with corrected alpha from pooled data
@@ -268,7 +400,7 @@ def imputed_mk_test_multi(
     ls = num_synonymous_sites if num_synonymous_sites is not None else ls_agg
     ln = num_nonsynonymous_sites if num_nonsynonymous_sites is not None else ln_agg
 
-    return _compute_imputed(
+    result = _compute_imputed(
         all_polymorphisms,
         dn_total,
         ds_total,
@@ -276,3 +408,18 @@ def imputed_mk_test_multi(
         ls,
         ln,
     )
+    if n_bootstrap > 0:
+        ci = _bootstrap_imputed_alpha(
+            all_polymorphisms,
+            dn_total,
+            ds_total,
+            cutoff,
+            ls,
+            ln,
+            n_bootstrap,
+            seed,
+        )
+        if ci is not None:
+            result.alpha_ci_low, result.alpha_ci_high = ci
+            result.ci_method = "bootstrap"
+    return result
