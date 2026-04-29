@@ -1,5 +1,31 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Nei-Gojobori site totals on every result dataclass (`MKResult`,
+  `AsymptoticMKResult`, `PolarizedMKResult`, `ImputedMKResult`,
+  `AlphaTGResult`) as `ln` and `ls` fields. Aggregated and per-gene
+  paths populate them automatically from analyzed codons.
+- `omega` (dN/dS, with Nei-Gojobori site weighting) on every result
+  dataclass: `omega = (Dn/Ds) * (Ls/Ln)`. Returns `None` when `Ds = 0`
+  or site counts are unavailable.
+- `omega_a` and `omega_na` (adaptive / non-adaptive substitution rates)
+  on result types whose alpha estimator is appropriate for the
+  decomposition: `AsymptoticMKResult` (per-gene and aggregated),
+  `ImputedMKResult`, and `AlphaTGResult`. Following Gossmann, Keightley
+  & Eyre-Walker (2012, *Genome Biol Evol* 4(5):658-667),
+  `omega_a = alpha * omega` and `omega_na = (1 - alpha) * omega`.
+  `MKResult` and `PolarizedMKResult` deliberately omit these — the
+  per-gene Smith-Eyre-Walker / polarized alpha is too noisy for a
+  meaningful rate decomposition. See `docs/omega.rst` for the
+  rationale.
+- `omega_decomposition()` helper in `mkado.analysis.statistics`.
+- `AlignedPair.count_total_sites()` aggregating Nei-Gojobori `(Ln, Ls)`
+  totals over analyzed codons.
+- `Ln`, `Ls`, `omega`, `omega_a`, and `omega_na` columns in pretty,
+  TSV, and JSON output for all result types.
+
 ## [0.4.0] - 2026-03-17
 
 ### Added

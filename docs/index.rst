@@ -50,6 +50,7 @@ Quick Example
    imputed
    alpha-tg
    dos
+   omega
    file-formats
    api
 

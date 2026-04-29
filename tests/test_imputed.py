@@ -379,7 +379,10 @@ class TestImputedMKResult:
         tsv = format_result(result, OutputFormat.TSV)
         header, values = tsv.split("\n")
 
-        assert "Dn\tDs\tPn\tPs\tPwd\tPn_neutral\talpha\tp_value\tcutoff" == header
+        assert (
+            "Dn\tDs\tPn\tPs\tPwd\tPn_neutral\talpha\tp_value\tcutoff\t"
+            "Ln\tLs\tomega\tomega_a\tomega_na"
+        ) == header
         fields = values.split("\t")
         assert fields[0] == "7"   # Dn
         assert fields[1] == "5"   # Ds

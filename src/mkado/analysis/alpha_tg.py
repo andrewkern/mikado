@@ -22,7 +22,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from mkado.analysis.asymptotic import PolymorphismData
+from mkado.analysis.asymptotic import PolymorphismData, sum_site_totals
+from mkado.analysis.statistics import omega_decomposition
 
 
 @dataclass
@@ -62,6 +63,17 @@ class AlphaTGResult:
     ps_total: int
     """Total synonymous polymorphism across all genes."""
 
+    ln: float | None = None
+    """Total non-synonymous sites (Nei-Gojobori) summed across genes."""
+    ls: float | None = None
+    """Total synonymous sites (Nei-Gojobori) summed across genes."""
+    omega: float | None = None
+    """``(Dn_total/Ds_total) * (Ls/Ln)`` — pooled dN/dS."""
+    omega_a: float | None = None
+    """Adaptive rate ``alpha_tg * omega`` (Gossmann, Keightley & Eyre-Walker 2012)."""
+    omega_na: float | None = None
+    """Non-adaptive component ``(1 - alpha_tg) * omega``."""
+
     def __str__(self) -> str:
         """Return a human-readable string representation."""
         lines = [
@@ -72,6 +84,15 @@ class AlphaTGResult:
             f"  Polymorphism:  Pn={self.pn_total}, Ps={self.ps_total}",
             f"  Genes: {self.num_genes}",
         ]
+        if self.ln is not None and self.ls is not None:
+            lines.append(f"  Sites:         Ln={self.ln:.2f}, Ls={self.ls:.2f}")
+        if self.omega is not None:
+            omega_a_str = f"{self.omega_a:.4f}" if self.omega_a is not None else "N/A"
+            omega_na_str = f"{self.omega_na:.4f}" if self.omega_na is not None else "N/A"
+            lines.append(
+                f"  omega:         {self.omega:.4f} "
+                f"(omega_a={omega_a_str}, omega_na={omega_na_str})"
+            )
         return "\n".join(lines)
 
     def to_dict(self) -> dict:
@@ -86,6 +107,11 @@ class AlphaTGResult:
             "ds_total": self.ds_total,
             "pn_total": self.pn_total,
             "ps_total": self.ps_total,
+            "ln": self.ln,
+            "ls": self.ls,
+            "omega": self.omega,
+            "omega_a": self.omega_a,
+            "omega_na": self.omega_na,
         }
 
 
@@ -148,6 +174,8 @@ def alpha_tg_from_gene_data(
     )
     num_genes = len(gene_data)
 
+    ln_total, ls_total = sum_site_totals(gene_data)
+
     # Compute point estimate
     ni_tg = compute_ni_tg(gene_data)
 
@@ -163,6 +191,8 @@ def alpha_tg_from_gene_data(
             ds_total=ds_total,
             pn_total=pn_total,
             ps_total=ps_total,
+            ln=ln_total,
+            ls=ls_total,
         )
 
     alpha_tg = 1.0 - ni_tg
@@ -188,6 +218,10 @@ def alpha_tg_from_gene_data(
         ci_low = alpha_tg
         ci_high = alpha_tg
 
+    omega, omega_a, omega_na = omega_decomposition(
+        dn_total, ds_total, ln_total, ls_total, alpha_tg
+    )
+
     return AlphaTGResult(
         alpha_tg=alpha_tg,
         ni_tg=ni_tg,
@@ -198,4 +232,9 @@ def alpha_tg_from_gene_data(
         ds_total=ds_total,
         pn_total=pn_total,
         ps_total=ps_total,
+        ln=ln_total,
+        ls=ls_total,
+        omega=omega,
+        omega_a=omega_a,
+        omega_na=omega_na,
     )

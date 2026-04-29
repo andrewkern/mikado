@@ -130,6 +130,34 @@ class AlignedPair:
         outgroup_poly = set(self.outgroup.polymorphic_codons())
         return sorted(ingroup_poly | outgroup_poly)
 
+    def count_total_sites(self) -> tuple[float, float]:
+        """Aggregate total non-synonymous (Ln) and synonymous (Ls) sites.
+
+        For each codon position with at least one clean codon in each group,
+        averages the Nei-Gojobori per-codon synonymous site counts within
+        each group, then averages the two group means. Sums across positions
+        and returns ``(Ln, Ls)`` with ``Ln = 3 * n_codons - Ls``.
+        """
+        n_codons = self.num_codons
+        ingroup = self.ingroup
+        outgroup = self.outgroup
+        cs = self.genetic_code.count_synonymous_sites
+
+        ls = 0.0
+        used = 0
+        for i in range(n_codons):
+            in_codons_i = ingroup.codon_set_clean(i)
+            out_codons_i = outgroup.codon_set_clean(i)
+            if not in_codons_i or not out_codons_i:
+                continue
+            in_ls = sum(cs(c) for c in in_codons_i) / len(in_codons_i)
+            out_ls = sum(cs(c) for c in out_codons_i) / len(out_codons_i)
+            ls += (in_ls + out_ls) / 2.0
+            used += 1
+
+        ln = (3.0 * used) - ls
+        return (ln, ls)
+
     def classify_fixed_difference(
         self, codon_index: int
     ) -> tuple[int, int] | None:

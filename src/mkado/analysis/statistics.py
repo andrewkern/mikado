@@ -154,6 +154,36 @@ def g_test(dn: int, ds: int, pn: int, ps: int) -> float:
     return float(p_value)
 
 
+def omega_decomposition(
+    dn: int,
+    ds: int,
+    ln: float | None,
+    ls: float | None,
+    alpha_value: float | None,
+) -> tuple[float | None, float | None, float | None]:
+    """Compute omega and its adaptive/non-adaptive decomposition.
+
+    Following Gossmann, Keightley & Eyre-Walker (2012, *Genome Biol Evol*
+    4(5):658-667), the nonsynonymous substitution rate decomposes into an
+    adaptive component ``omega_a`` and a non-adaptive component ``omega_na``::
+
+        omega    = (Dn / Ds) * (Ls / Ln)   (= dN/dS using N-G site counts)
+        omega_a  = alpha * omega
+        omega_na = (1 - alpha) * omega = omega - omega_a
+
+    Returns ``(None, None, None)`` if site counts are missing or any
+    denominator is zero. ``omega_a`` and ``omega_na`` are ``None``
+    when ``alpha_value`` is ``None``.
+    """
+    if ln is None or ls is None or ln <= 0 or ls <= 0 or ds == 0:
+        return (None, None, None)
+
+    omega = (dn * ls) / (ds * ln)
+    if alpha_value is None:
+        return (omega, None, None)
+    return (omega, alpha_value * omega, (1.0 - alpha_value) * omega)
+
+
 def confidence_interval_alpha(
     dn: int, ds: int, pn: int, ps: int, confidence: float = 0.95
 ) -> tuple[float, float] | None:

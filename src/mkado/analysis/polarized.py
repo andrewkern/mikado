@@ -6,7 +6,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from mkado.analysis.statistics import alpha, dos, fishers_exact, neutrality_index
+from mkado.analysis.statistics import (
+    alpha,
+    dos,
+    fishers_exact,
+    neutrality_index,
+    omega_decomposition,
+)
 from mkado.core.alignment import PolarizedAlignedPair
 from mkado.core.codons import DEFAULT_CODE, GeneticCode
 from mkado.core.sequences import SequenceSet
@@ -61,11 +67,25 @@ class PolarizedMKResult:
     """Proportion of adaptive substitutions on the ingroup lineage."""
     dos_ingroup: float | None
     """Direction of Selection for the ingroup lineage."""
+    ln: float | None = None
+    """Total non-synonymous sites (Nei-Gojobori) over analyzed codons."""
+    ls: float | None = None
+    """Total synonymous sites (Nei-Gojobori) over analyzed codons."""
+    omega: float | None = None
+    """``(Dn_ingroup/Ds_ingroup) * (Ls/Ln)`` — ingroup-lineage dN/dS.
+
+    Note: this result class deliberately omits ``omega_a`` / ``omega_na``;
+    per-gene polarized alpha is too noisy to give a useful rate
+    decomposition. See ``docs/omega.rst`` for the rationale.
+    """
 
     def __str__(self) -> str:
         ni_str = f"{self.ni_ingroup:.4f}" if self.ni_ingroup is not None else "N/A"
         alpha_str = f"{self.alpha_ingroup:.4f}" if self.alpha_ingroup is not None else "N/A"
         dos_str = f"{self.dos_ingroup:.4f}" if self.dos_ingroup is not None else "N/A"
+        omega_str = f"{self.omega:.4f}" if self.omega is not None else "N/A"
+        ls_str = f"{self.ls:.2f}" if self.ls is not None else "N/A"
+        ln_str = f"{self.ln:.2f}" if self.ln is not None else "N/A"
         return (
             f"Polarized MK Test Results:\n"
             f"  Ingroup Lineage:\n"
@@ -73,6 +93,8 @@ class PolarizedMKResult:
             f"    Polymorphism:  Pn={self.pn_ingroup}, Ps={self.ps_ingroup}\n"
             f"    Fisher's p-value: {self.p_value_ingroup:.4g}\n"
             f"    NI: {ni_str}, Alpha: {alpha_str}, DoS: {dos_str}\n"
+            f"    omega (dN/dS): {omega_str}\n"
+            f"  Sites: Ln={ln_str}, Ls={ls_str}\n"
             f"  Outgroup Lineage:\n"
             f"    Divergence:    Dn={self.dn_outgroup}, Ds={self.ds_outgroup}\n"
             f"  Unpolarized:\n"
@@ -92,6 +114,7 @@ class PolarizedMKResult:
                 "ni": self.ni_ingroup,
                 "alpha": self.alpha_ingroup,
                 "dos": self.dos_ingroup,
+                "omega": self.omega,
             },
             "outgroup": {
                 "dn": self.dn_outgroup,
@@ -103,6 +126,8 @@ class PolarizedMKResult:
                 "pn": self.pn_unpolarized,
                 "ps": self.ps_unpolarized,
             },
+            "ln": self.ln,
+            "ls": self.ls,
         }
 
 
@@ -257,6 +282,8 @@ def polarized_mk_test(
     ni = neutrality_index(dn_in, ds_in, pn_in, ps_in)
     a = alpha(dn_in, ds_in, pn_in, ps_in)
     d = dos(dn_in, ds_in, pn_in, ps_in)
+    ln, ls = pair.count_total_sites()
+    omega, _, _ = omega_decomposition(dn_in, ds_in, ln, ls, a)
 
     return PolarizedMKResult(
         dn_ingroup=dn_in,
@@ -273,4 +300,7 @@ def polarized_mk_test(
         ni_ingroup=ni,
         alpha_ingroup=a,
         dos_ingroup=d,
+        ln=ln,
+        ls=ls,
+        omega=omega,
     )

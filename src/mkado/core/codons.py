@@ -49,6 +49,8 @@ class GeneticCode:
         else:
             self._paths = _compute_codon_paths(self.code)
 
+        self._syn_sites_cache: dict[str, float] = {}
+
     @lru_cache(maxsize=4096)
     def translate(self, codon: str) -> str:
         """Translate a codon to its amino acid.
@@ -108,11 +110,17 @@ class GeneticCode:
             Number of synonymous sites (0-3)
         """
         codon = codon.upper()
+        cached = self._syn_sites_cache.get(codon)
+        if cached is not None:
+            return cached
+
         if "N" in codon or "-" in codon:
+            self._syn_sites_cache[codon] = 0.0
             return 0.0
 
         aa = self.translate(codon)
         if aa == "*" or aa == "X":
+            self._syn_sites_cache[codon] = 0.0
             return 0.0
 
         syn_sites = 0.0
@@ -133,6 +141,7 @@ class GeneticCode:
             if total_count > 0:
                 syn_sites += syn_count / total_count
 
+        self._syn_sites_cache[codon] = syn_sites
         return syn_sites
 
     def is_synonymous_change(self, codon1: str, codon2: str) -> bool | None:
