@@ -27,7 +27,13 @@ from mkado.analysis.asymptotic import PolymorphismData
 
 @dataclass
 class AlphaTGResult:
-    """Results from Tarone-Greenland alpha estimation."""
+    """Results from Tarone-Greenland alpha estimation.
+
+    Per-gene ``(Dn, Ds, Pn, Ps)`` counts follow the standard MK definitions
+    (see :class:`mkado.analysis.mk_test.MKResult`); ``min_frequency``
+    filtering applied to each gene's polymorphism extraction propagates
+    into the totals reported here.
+    """
 
     alpha_tg: float
     """Proportion of adaptive substitutions (1 - NI_TG)."""

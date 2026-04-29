@@ -82,9 +82,15 @@ class AsymptoticMKResult:
     # Model type ("exponential" or "linear")
     model_type: str = "exponential"
 
-    # Total polymorphism counts (useful for aggregated results)
+    # Total polymorphism counts across all bins (sum of the per-bin SFS).
+    # Pn / Ps follow the standard MK definition: ingroup polymorphic sites
+    # whose derived allele causes a non-synonymous (Pn) or synonymous (Ps)
+    # substitution. The asymptotic test uses the full SFS (no min-frequency
+    # filter); frequency cutoffs apply only to the alpha(x) curve fit.
     pn_total: int = 0
+    """Total non-synonymous polymorphisms (sum across all SFS bins)."""
     ps_total: int = 0
+    """Total synonymous polymorphisms (sum across all SFS bins)."""
 
     def __str__(self) -> str:
         lines = [

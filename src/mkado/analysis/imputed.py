@@ -19,20 +19,44 @@ from mkado.analysis.statistics import fishers_exact
 
 @dataclass
 class ImputedMKResult:
-    """Results from an imputed McDonald-Kreitman test."""
+    """Results from an imputed McDonald-Kreitman test.
+
+    The imputed test partitions ``Pn`` into a weakly-deleterious fraction
+    (``Pwd``) — imputed from the synonymous SFS scaled by the observed
+    Pn/Ps ratio at low derived allele frequencies — and a neutral
+    fraction (``Pn_neutral = Pn_total - Pwd``). ``alpha`` is computed
+    against ``Pn_neutral`` rather than the raw ``Pn`` count, removing the
+    downward bias caused by slightly deleterious nonsynonymous variants.
+
+    ``Dn`` and ``Ds`` follow the standard MK definitions. ``Pn_total`` and
+    ``Ps_total`` are the unfiltered ingroup polymorphism counts (the imputed
+    test uses the entire SFS, including singletons).
+    """
 
     alpha: float | None
+    """Proportion of adaptive substitutions, computed against ``Pn_neutral``."""
     p_value: float
+    """Fisher's exact test p-value on the imputed (Dn, Ds, Pn_neutral, Ps_total) table."""
     pn_neutral: float
+    """Estimated neutral nonsynonymous polymorphism count (``Pn_total - Pwd``)."""
     pwd: float
+    """Imputed count of weakly-deleterious nonsynonymous polymorphisms."""
     dn: int
+    """Non-synonymous fixed differences."""
     ds: int
+    """Synonymous fixed differences."""
     pn_total: int
+    """Total non-synonymous ingroup polymorphisms (no frequency filter applied)."""
     ps_total: int
+    """Total synonymous ingroup polymorphisms (no frequency filter applied)."""
     d: float | None = None
+    """Estimated DFE deleterious fraction (Murga-Moreno et al. 2022, eq. 3)."""
     b: float | None = None
+    """Estimated DFE weakly-deleterious fraction."""
     f: float | None = None
+    """Estimated DFE neutral fraction."""
     cutoff: float = 0.15
+    """Derived allele frequency below which polymorphisms are treated as the imputation pool."""
 
     def __str__(self) -> str:
         alpha_str = f"{self.alpha:.4f}" if self.alpha is not None else "N/A"
