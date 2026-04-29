@@ -82,6 +82,14 @@
   byte-identical for callers; a new regression test in
   `tests/test_codons.py::TestGeneticCodeMemory` uses `weakref` to verify
   instances are garbage-collected after `del` + `gc.collect()`.
+- Standardized missing-value rendering on the literal `"NA"` (no slash)
+  across pretty and TSV output (closes #13). The dataclass `__str__`
+  methods previously rendered `"N/A"` while the TSV formatters used
+  `"NA"` — a user piping pretty output through R/awk that parses `"NA"`
+  would have silently missed `"N/A"` rows. JSON renders `null`,
+  unchanged. New regression suite in `tests/test_output_format.py`
+  guards both the convention and the absence of `"N/A"` in any output
+  format.
 
 ### Changed
 - Per-gene `asymptotic_mk_test` CI failure handling: replicates whose

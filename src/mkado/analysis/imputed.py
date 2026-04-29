@@ -110,7 +110,7 @@ class ImputedMKResult:
         return (1.0 - self.alpha_ci_low) * self.omega
 
     def __str__(self) -> str:
-        alpha_str = f"{self.alpha:.4f}" if self.alpha is not None else "N/A"
+        alpha_str = f"{self.alpha:.4f}" if self.alpha is not None else "NA"
         lines = [
             "Imputed MK Test Results:",
             f"  Divergence:    Dn={self.dn}, Ds={self.ds}",
@@ -129,8 +129,8 @@ class ImputedMKResult:
         if self.ln is not None and self.ls is not None:
             lines.append(f"  Sites:         Ln={self.ln:.2f}, Ls={self.ls:.2f}")
         if self.omega is not None:
-            omega_a_str = f"{self.omega_a:.4f}" if self.omega_a is not None else "N/A"
-            omega_na_str = f"{self.omega_na:.4f}" if self.omega_na is not None else "N/A"
+            omega_a_str = f"{self.omega_a:.4f}" if self.omega_a is not None else "NA"
+            omega_na_str = f"{self.omega_na:.4f}" if self.omega_na is not None else "NA"
             lines.append(
                 f"  omega:         {self.omega:.4f} "
                 f"(omega_a={omega_a_str}, omega_na={omega_na_str})"
