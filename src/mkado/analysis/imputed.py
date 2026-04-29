@@ -273,24 +273,44 @@ def _bootstrap_imputed_alpha(
 ) -> tuple[float, float] | None:
     """Bootstrap CI on imputed alpha by case-resampling the polymorphism list.
 
-    Each replicate draws ``len(polymorphisms)`` indices uniformly with
-    replacement and reruns the imputed MK algorithm. Returns ``None`` if
-    no successful replicate yields a defined alpha.
+    Vectorized: pre-extract ``freqs`` / ``is_n`` / ``is_low`` numpy arrays
+    once, then per replicate index with ``rng.integers`` and count via
+    ``np.count_nonzero``. The CI only needs alpha, so we inline the imputed
+    formula and skip Fisher's-exact, DFE fractions, and omega — all of which
+    ``_compute_imputed`` recomputes on every call but none of which feed the
+    percentile.
+
+    Returns ``None`` if fewer than half the replicates yield a defined alpha.
     """
     n = len(polymorphisms)
     if n == 0 or n_replicates <= 0:
         return None
+    if dn == 0:
+        # alpha is undefined for every replicate; skip the loop entirely.
+        return None
+
+    freqs = np.fromiter((f for f, _ in polymorphisms), dtype=float, count=n)
+    is_n = np.fromiter((t == "N" for _, t in polymorphisms), dtype=bool, count=n)
+    is_low = freqs <= cutoff
 
     rng = np.random.default_rng(seed)
     bootstrap_alphas: list[float] = []
     for _ in range(n_replicates):
-        sample_idx = rng.integers(0, n, size=n)
-        boot = [polymorphisms[i] for i in sample_idx]
-        boot_result = _compute_imputed(
-            boot, dn, ds, cutoff, num_synonymous_sites, num_nonsynonymous_sites
-        )
-        if boot_result.alpha is not None:
-            bootstrap_alphas.append(boot_result.alpha)
+        sample = rng.integers(0, n, size=n)
+        boot_n = is_n[sample]
+        boot_low = is_low[sample]
+        pn_low = int(np.count_nonzero(boot_n & boot_low))
+        pn_high = int(np.count_nonzero(boot_n & ~boot_low))
+        ps_low = int(np.count_nonzero(~boot_n & boot_low))
+        ps_high = int(np.count_nonzero(~boot_n & ~boot_low))
+
+        ps_total = ps_low + ps_high
+        if ps_total == 0:
+            continue
+        ratio_ps = ps_low / ps_high if ps_high else 0.0
+        pwd = max(pn_low - pn_high * ratio_ps, 0.0)
+        pn_neutral = (pn_low + pn_high) - pwd
+        bootstrap_alphas.append(1.0 - (pn_neutral / ps_total) * (ds / dn))
 
     if len(bootstrap_alphas) < n_replicates // 2:
         logger.debug(
