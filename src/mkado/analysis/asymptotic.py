@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Callable
 import numpy as np
 from scipy import optimize
 
+from mkado.analysis.statistics import omega_decomposition
 from mkado.core.alignment import AlignedPair
 from mkado.core.codons import DEFAULT_CODE, GeneticCode
 from mkado.core.sequences import SequenceSet
@@ -32,6 +33,22 @@ class PolymorphismData:
     dn: int = 0
     ds: int = 0
     gene_id: str = ""
+    ln: float | None = None
+    """Total non-synonymous sites (Nei-Gojobori) over analyzed codons."""
+    ls: float | None = None
+    """Total synonymous sites (Nei-Gojobori) over analyzed codons."""
+
+
+def sum_site_totals(
+    gene_data: list[PolymorphismData],
+) -> tuple[float | None, float | None]:
+    """Sum per-gene Nei-Gojobori (Ln, Ls); return ``(None, None)`` if any gene lacks them."""
+    if not gene_data or any(g.ln is None or g.ls is None for g in gene_data):
+        return (None, None)
+    return (
+        sum(g.ln for g in gene_data),  # type: ignore[misc]
+        sum(g.ls for g in gene_data),  # type: ignore[misc]
+    )
 
 
 @dataclass
@@ -46,6 +63,10 @@ class AggregatedSFS:
     dn_total: int = 0
     ds_total: int = 0
     num_genes: int = 0
+    ln_total: float | None = None
+    """Sum of per-gene Nei-Gojobori non-synonymous sites."""
+    ls_total: float | None = None
+    """Sum of per-gene Nei-Gojobori synonymous sites."""
 
 
 @dataclass
@@ -93,6 +114,51 @@ class AsymptoticMKResult:
     """Total non-synonymous polymorphisms (sum across all SFS bins)."""
     ps_total: int = 0
     """Total synonymous polymorphisms (sum across all SFS bins)."""
+    ln: float | None = None
+    """Total non-synonymous sites (Nei-Gojobori)."""
+    ls: float | None = None
+    """Total synonymous sites (Nei-Gojobori)."""
+    omega: float | None = None
+    """``(Dn/Ds) * (Ls/Ln)`` — dN/dS ratio."""
+    omega_a: float | None = None
+    """Adaptive component ``alpha_asymptotic * omega``."""
+    omega_na: float | None = None
+    """Non-adaptive component ``(1 - alpha_asymptotic) * omega``."""
+
+    # Dn, Ds, Ln, Ls are constants under the asymptotic Monte Carlo procedure,
+    # so omega has no sampling distribution. The CIs on omega_a and omega_na
+    # are pure arithmetic transforms of the existing alpha CI: no need to
+    # store them.
+    @property
+    def omega_a_ci_low(self) -> float | None:
+        """Lower 95% CI for ``omega_a`` = ``ci_low * omega``."""
+        if self.omega is None:
+            return None
+        return self.ci_low * self.omega
+
+    @property
+    def omega_a_ci_high(self) -> float | None:
+        """Upper 95% CI for ``omega_a`` = ``ci_high * omega``."""
+        if self.omega is None:
+            return None
+        return self.ci_high * self.omega
+
+    @property
+    def omega_na_ci_low(self) -> float | None:
+        """Lower 95% CI for ``omega_na`` = ``(1 - ci_high) * omega``.
+
+        Percentiles flip because ``(1 - alpha)`` is monotonically decreasing.
+        """
+        if self.omega is None:
+            return None
+        return (1.0 - self.ci_high) * self.omega
+
+    @property
+    def omega_na_ci_high(self) -> float | None:
+        """Upper 95% CI for ``omega_na`` = ``(1 - ci_low) * omega``."""
+        if self.omega is None:
+            return None
+        return (1.0 - self.ci_low) * self.omega
 
     def __str__(self) -> str:
         lines = [
@@ -103,6 +169,23 @@ class AsymptoticMKResult:
         ]
         if self.pn_total > 0 or self.ps_total > 0:
             lines.append(f"  Polymorphism: Pn={self.pn_total}, Ps={self.ps_total}")
+        if self.ln is not None and self.ls is not None:
+            lines.append(f"  Sites: Ln={self.ln:.2f}, Ls={self.ls:.2f}")
+        if self.omega is not None:
+            omega_a_str = f"{self.omega_a:.4f}" if self.omega_a is not None else "N/A"
+            omega_na_str = f"{self.omega_na:.4f}" if self.omega_na is not None else "N/A"
+            lines.append(
+                f"  omega: {self.omega:.4f} (omega_a={omega_a_str}, omega_na={omega_na_str})"
+            )
+            if self.omega_a_ci_low is not None and self.omega_a_ci_high is not None:
+                lines.append(
+                    f"    omega_a 95% CI:  ({self.omega_a_ci_low:.4f}, {self.omega_a_ci_high:.4f})"
+                )
+            if self.omega_na_ci_low is not None and self.omega_na_ci_high is not None:
+                lines.append(
+                    f"    omega_na 95% CI: ({self.omega_na_ci_low:.4f}, "
+                    f"{self.omega_na_ci_high:.4f})"
+                )
         if self.num_genes > 0:
             lines.append(f"  Genes aggregated: {self.num_genes}")
         if self.model_type == "exponential":
@@ -112,8 +195,7 @@ class AsymptoticMKResult:
             )
         else:
             lines.append(
-                f"  Fit ({self.model_type}): α(x) = {self.fit_a:.4f} + "
-                f"{self.fit_b:.4f} * x"
+                f"  Fit ({self.model_type}): α(x) = {self.fit_a:.4f} + {self.fit_b:.4f} * x"
             )
         return "\n".join(lines)
 
@@ -141,7 +223,33 @@ class AsymptoticMKResult:
         if self.pn_total > 0 or self.ps_total > 0:
             result["pn_total"] = self.pn_total
             result["ps_total"] = self.ps_total
+        result["ln"] = self.ln
+        result["ls"] = self.ls
+        result["omega"] = self.omega
+        result["omega_a"] = self.omega_a
+        result["omega_na"] = self.omega_na
+        result["omega_a_ci_low"] = self.omega_a_ci_low
+        result["omega_a_ci_high"] = self.omega_a_ci_high
+        result["omega_na_ci_low"] = self.omega_na_ci_low
+        result["omega_na_ci_high"] = self.omega_na_ci_high
         return result
+
+
+def _attach_omega(
+    result: AsymptoticMKResult,
+    ln: float | None,
+    ls: float | None,
+) -> AsymptoticMKResult:
+    """Populate ln/ls/omega point estimates on an asymptotic result in-place."""
+    omega, omega_a, omega_na = omega_decomposition(
+        result.dn, result.ds, ln, ls, result.alpha_asymptotic
+    )
+    result.ln = ln
+    result.ls = ls
+    result.omega = omega
+    result.omega_a = omega_a
+    result.omega_na = omega_na
+    return result
 
 
 def _exponential_model(x: np.ndarray, a: float, b: float, c: float) -> np.ndarray:
@@ -329,11 +437,15 @@ def extract_polymorphism_data(
             for _ in range(syn):
                 poly_data.append((derived_freq, "S"))
 
+    ln, ls = pair.count_total_sites()
+
     return PolymorphismData(
         polymorphisms=poly_data,
         dn=dn,
         ds=ds,
         gene_id=gene_id,
+        ln=ln,
+        ls=ls,
     )
 
 
@@ -353,6 +465,7 @@ def aggregate_polymorphism_data(
     # Sum divergence across all genes
     dn_total = sum(g.dn for g in gene_data)
     ds_total = sum(g.ds for g in gene_data)
+    ln_total, ls_total = sum_site_totals(gene_data)
 
     # Combine all polymorphisms
     all_polymorphisms: list[tuple[float, str]] = []
@@ -383,6 +496,8 @@ def aggregate_polymorphism_data(
         dn_total=dn_total,
         ds_total=ds_total,
         num_genes=len(gene_data),
+        ln_total=ln_total,
+        ls_total=ls_total,
     )
 
 
@@ -440,7 +555,7 @@ def asymptotic_mk_test_aggregated(
         if ds > 0 and dn > 0 and ps_total > 0:
             simple_alpha = 1.0 - (ds * pn_total) / (dn * ps_total)
 
-        return AsymptoticMKResult(
+        result = AsymptoticMKResult(
             frequency_bins=list(bin_centers),
             alpha_by_freq=alpha_values,
             alpha_x_values=valid_centers,
@@ -453,6 +568,7 @@ def asymptotic_mk_test_aggregated(
             pn_total=pn_total,
             ps_total=ps_total,
         )
+        return _attach_omega(result, agg.ln_total, agg.ls_total)
 
     x_data = np.array(valid_centers)
     y_data = np.array(alpha_values)
@@ -563,7 +679,7 @@ def asymptotic_mk_test_aggregated(
         use_exponential = False
     else:
         # Both failed, use last value
-        return AsymptoticMKResult(
+        result = AsymptoticMKResult(
             frequency_bins=list(bin_centers),
             alpha_by_freq=alpha_values,
             alpha_x_values=valid_centers,
@@ -576,10 +692,11 @@ def asymptotic_mk_test_aggregated(
             pn_total=pn_total,
             ps_total=ps_total,
         )
+        return _attach_omega(result, agg.ln_total, agg.ls_total)
 
     if use_exponential:
         a, b, c = exp_popt
-        return AsymptoticMKResult(
+        result = AsymptoticMKResult(
             frequency_bins=list(bin_centers),
             alpha_by_freq=alpha_values,
             alpha_x_values=valid_centers,
@@ -598,7 +715,7 @@ def asymptotic_mk_test_aggregated(
         )
     else:
         a_lin, b_lin = lin_popt
-        return AsymptoticMKResult(
+        result = AsymptoticMKResult(
             frequency_bins=list(bin_centers),
             alpha_by_freq=alpha_values,
             alpha_x_values=valid_centers,
@@ -615,6 +732,7 @@ def asymptotic_mk_test_aggregated(
             pn_total=pn_total,
             ps_total=ps_total,
         )
+    return _attach_omega(result, agg.ln_total, agg.ls_total)
 
 
 def asymptotic_mk_test(
@@ -659,6 +777,7 @@ def asymptotic_mk_test(
 
     # Create aligned pair
     pair = AlignedPair(ingroup=ingroup, outgroup=outgroup, genetic_code=code)
+    ln_total, ls_total = pair.count_total_sites()
 
     # Count divergence
     dn = 0
@@ -763,7 +882,7 @@ def asymptotic_mk_test(
             if total_ps > 0:
                 simple_alpha = 1.0 - (ds * total_pn) / (dn * total_ps)
 
-        return AsymptoticMKResult(
+        result = AsymptoticMKResult(
             frequency_bins=list(bin_centers),
             alpha_by_freq=alpha_values,
             alpha_x_values=valid_centers,
@@ -773,6 +892,7 @@ def asymptotic_mk_test(
             dn=dn,
             ds=ds,
         )
+        return _attach_omega(result, ln_total, ls_total)
 
     # Fit exponential model: α(x) = a + b * exp(-c * x)
     x_data = np.array(valid_centers)
@@ -866,7 +986,7 @@ def asymptotic_mk_test(
         ci_low = alpha_asymp
         ci_high = alpha_asymp
 
-    return AsymptoticMKResult(
+    result = AsymptoticMKResult(
         frequency_bins=list(bin_centers),
         alpha_by_freq=alpha_values,
         alpha_x_values=valid_centers,
@@ -879,3 +999,4 @@ def asymptotic_mk_test(
         dn=dn,
         ds=ds,
     )
+    return _attach_omega(result, ln_total, ls_total)

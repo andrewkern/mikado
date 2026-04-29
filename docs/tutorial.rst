@@ -141,6 +141,9 @@ The output includes:
 - **95% CI**: Confidence interval for alpha asymptotic
 - **Model type**: Whether exponential or linear model was selected
 - **Per-bin alpha values**: Alpha estimates at each frequency class
+- **omega, omega_a, omega_na**: dN/dS and its adaptive / non-adaptive
+  decomposition, with 95% CIs on omega_a and omega_na derived by scaling
+  the alpha CI. See :doc:`omega` for details.
 
 Allele Polarization
 -------------------

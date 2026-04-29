@@ -22,7 +22,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from mkado.analysis.asymptotic import PolymorphismData
+from mkado.analysis.asymptotic import PolymorphismData, sum_site_totals
+from mkado.analysis.statistics import omega_decomposition
 
 
 @dataclass
@@ -62,6 +63,29 @@ class AlphaTGResult:
     ps_total: int
     """Total synonymous polymorphism across all genes."""
 
+    ln: float | None = None
+    """Total non-synonymous sites (Nei-Gojobori) summed across genes."""
+    ls: float | None = None
+    """Total synonymous sites (Nei-Gojobori) summed across genes."""
+    omega: float | None = None
+    """``(Dn_total/Ds_total) * (Ls/Ln)`` — pooled dN/dS."""
+    omega_a: float | None = None
+    """Adaptive rate ``alpha_tg * omega`` (Gossmann, Keightley & Eyre-Walker 2012)."""
+    omega_na: float | None = None
+    """Non-adaptive component ``(1 - alpha_tg) * omega``."""
+    omega_ci_low: float | None = None
+    """Lower 95% bootstrap CI for ``omega`` (gene-level resampling varies Dn, Ds, Ln, Ls)."""
+    omega_ci_high: float | None = None
+    """Upper 95% bootstrap CI for ``omega``."""
+    omega_a_ci_low: float | None = None
+    """Lower 95% bootstrap CI for ``omega_a``."""
+    omega_a_ci_high: float | None = None
+    """Upper 95% bootstrap CI for ``omega_a``."""
+    omega_na_ci_low: float | None = None
+    """Lower 95% bootstrap CI for ``omega_na``."""
+    omega_na_ci_high: float | None = None
+    """Upper 95% bootstrap CI for ``omega_na``."""
+
     def __str__(self) -> str:
         """Return a human-readable string representation."""
         lines = [
@@ -72,6 +96,28 @@ class AlphaTGResult:
             f"  Polymorphism:  Pn={self.pn_total}, Ps={self.ps_total}",
             f"  Genes: {self.num_genes}",
         ]
+        if self.ln is not None and self.ls is not None:
+            lines.append(f"  Sites:         Ln={self.ln:.2f}, Ls={self.ls:.2f}")
+        if self.omega is not None:
+            omega_a_str = f"{self.omega_a:.4f}" if self.omega_a is not None else "N/A"
+            omega_na_str = f"{self.omega_na:.4f}" if self.omega_na is not None else "N/A"
+            lines.append(
+                f"  omega:         {self.omega:.4f} "
+                f"(omega_a={omega_a_str}, omega_na={omega_na_str})"
+            )
+            if self.omega_ci_low is not None and self.omega_ci_high is not None:
+                lines.append(
+                    f"    omega 95% CI:    ({self.omega_ci_low:.4f}, {self.omega_ci_high:.4f})"
+                )
+            if self.omega_a_ci_low is not None and self.omega_a_ci_high is not None:
+                lines.append(
+                    f"    omega_a 95% CI:  ({self.omega_a_ci_low:.4f}, {self.omega_a_ci_high:.4f})"
+                )
+            if self.omega_na_ci_low is not None and self.omega_na_ci_high is not None:
+                lines.append(
+                    f"    omega_na 95% CI: ({self.omega_na_ci_low:.4f}, "
+                    f"{self.omega_na_ci_high:.4f})"
+                )
         return "\n".join(lines)
 
     def to_dict(self) -> dict:
@@ -86,6 +132,17 @@ class AlphaTGResult:
             "ds_total": self.ds_total,
             "pn_total": self.pn_total,
             "ps_total": self.ps_total,
+            "ln": self.ln,
+            "ls": self.ls,
+            "omega": self.omega,
+            "omega_a": self.omega_a,
+            "omega_na": self.omega_na,
+            "omega_ci_low": self.omega_ci_low,
+            "omega_ci_high": self.omega_ci_high,
+            "omega_a_ci_low": self.omega_a_ci_low,
+            "omega_a_ci_high": self.omega_a_ci_high,
+            "omega_na_ci_low": self.omega_na_ci_low,
+            "omega_na_ci_high": self.omega_na_ci_high,
         }
 
 
@@ -140,13 +197,11 @@ def alpha_tg_from_gene_data(
     # Calculate totals
     dn_total = sum(g.dn for g in gene_data)
     ds_total = sum(g.ds for g in gene_data)
-    pn_total = sum(
-        sum(1 for _, ptype in g.polymorphisms if ptype == "N") for g in gene_data
-    )
-    ps_total = sum(
-        sum(1 for _, ptype in g.polymorphisms if ptype == "S") for g in gene_data
-    )
+    pn_total = sum(sum(1 for _, ptype in g.polymorphisms if ptype == "N") for g in gene_data)
+    ps_total = sum(sum(1 for _, ptype in g.polymorphisms if ptype == "S") for g in gene_data)
     num_genes = len(gene_data)
+
+    ln_total, ls_total = sum_site_totals(gene_data)
 
     # Compute point estimate
     ni_tg = compute_ni_tg(gene_data)
@@ -163,30 +218,62 @@ def alpha_tg_from_gene_data(
             ds_total=ds_total,
             pn_total=pn_total,
             ps_total=ps_total,
+            ln=ln_total,
+            ls=ls_total,
         )
 
     alpha_tg = 1.0 - ni_tg
 
-    # Bootstrap for confidence intervals
+    # Bootstrap for confidence intervals; resamples genes, so Dn/Ds/Ln/Ls
+    # totals also vary per replicate, giving omega its own sampling distribution.
     rng = np.random.default_rng(seed)
     bootstrap_alphas: list[float] = []
+    # omega_decomposition returns all three or none, so these stay in lockstep.
+    bootstrap_omegas: list[float] = []
+    bootstrap_omega_a: list[float] = []
+    bootstrap_omega_na: list[float] = []
 
     for _ in range(bootstrap_replicates):
-        # Resample genes with replacement
         indices = rng.integers(0, num_genes, size=num_genes)
         boot_data = [gene_data[i] for i in indices]
 
         boot_ni = compute_ni_tg(boot_data)
-        if boot_ni is not None:
-            bootstrap_alphas.append(1.0 - boot_ni)
+        if boot_ni is None:
+            continue
+        boot_alpha = 1.0 - boot_ni
+        bootstrap_alphas.append(boot_alpha)
 
-    # Calculate 95% CI
+        boot_dn = sum(g.dn for g in boot_data)
+        boot_ds = sum(g.ds for g in boot_data)
+        boot_ln, boot_ls = sum_site_totals(boot_data)
+        boot_omega, boot_oa, boot_ona = omega_decomposition(
+            boot_dn, boot_ds, boot_ln, boot_ls, boot_alpha
+        )
+        if boot_omega is not None:
+            bootstrap_omegas.append(boot_omega)
+            bootstrap_omega_a.append(boot_oa)
+            bootstrap_omega_na.append(boot_ona)
+
     if bootstrap_alphas:
-        ci_low = float(np.percentile(bootstrap_alphas, 2.5))
-        ci_high = float(np.percentile(bootstrap_alphas, 97.5))
+        ci_low, ci_high = np.percentile(bootstrap_alphas, [2.5, 97.5])
+        ci_low, ci_high = float(ci_low), float(ci_high)
     else:
-        ci_low = alpha_tg
-        ci_high = alpha_tg
+        ci_low = ci_high = alpha_tg
+
+    if bootstrap_omegas:
+        cis = np.percentile(
+            [bootstrap_omegas, bootstrap_omega_a, bootstrap_omega_na],
+            [2.5, 97.5],
+            axis=1,
+        )
+        omega_ci_low, omega_a_ci_low, omega_na_ci_low = (float(x) for x in cis[0])
+        omega_ci_high, omega_a_ci_high, omega_na_ci_high = (float(x) for x in cis[1])
+    else:
+        omega_ci_low = omega_ci_high = None
+        omega_a_ci_low = omega_a_ci_high = None
+        omega_na_ci_low = omega_na_ci_high = None
+
+    omega, omega_a, omega_na = omega_decomposition(dn_total, ds_total, ln_total, ls_total, alpha_tg)
 
     return AlphaTGResult(
         alpha_tg=alpha_tg,
@@ -198,4 +285,15 @@ def alpha_tg_from_gene_data(
         ds_total=ds_total,
         pn_total=pn_total,
         ps_total=ps_total,
+        ln=ln_total,
+        ls=ls_total,
+        omega=omega,
+        omega_a=omega_a,
+        omega_na=omega_na,
+        omega_ci_low=omega_ci_low,
+        omega_ci_high=omega_ci_high,
+        omega_a_ci_low=omega_a_ci_low,
+        omega_a_ci_high=omega_a_ci_high,
+        omega_na_ci_low=omega_na_ci_low,
+        omega_na_ci_high=omega_na_ci_high,
     )

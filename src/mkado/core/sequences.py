@@ -53,6 +53,12 @@ class SequenceSet:
     sequences: list[Sequence] = field(default_factory=list)
     reading_frame: int = 1
     genetic_code: GeneticCode = field(default_factory=lambda: DEFAULT_CODE)
+    _codon_set_clean_cache: dict[int, set[str]] = field(
+        default_factory=dict, init=False, repr=False, compare=False
+    )
+    """Per-position memoization for ``codon_set_clean()``. Treat the SequenceSet
+    as immutable once any caching method has been called; mutating ``sequences``
+    or ``reading_frame`` afterwards will leave stale entries here."""
 
     @classmethod
     def from_fasta(
@@ -83,6 +89,14 @@ class SequenceSet:
 
     def __getitem__(self, index: int) -> Sequence:
         return self.sequences[index]
+
+    def __getstate__(self) -> dict:
+        # Drop the per-position cache when pickling — it can be re-populated
+        # cheaply in the receiver and would otherwise inflate pickle size by
+        # O(num_codons) set objects.
+        state = self.__dict__.copy()
+        state["_codon_set_clean_cache"] = {}
+        return state
 
     @property
     def num_codons(self) -> int:
@@ -116,14 +130,22 @@ class SequenceSet:
     def codon_set_clean(self, codon_index: int) -> set[str]:
         """Get unique codons at a position, excluding those with N or gaps.
 
+        Result is cached per ``codon_index`` for the lifetime of the
+        ``SequenceSet``. Callers must not mutate the returned set.
+
         Args:
             codon_index: Zero-based codon index
 
         Returns:
             Set of unique valid codon strings
         """
+        cached = self._codon_set_clean_cache.get(codon_index)
+        if cached is not None:
+            return cached
         codons = self.codon_set(codon_index)
-        return {c for c in codons if "N" not in c and "-" not in c}
+        clean = {c for c in codons if "N" not in c and "-" not in c}
+        self._codon_set_clean_cache[codon_index] = clean
+        return clean
 
     def amino_set(self, codon_index: int) -> set[str]:
         """Get the set of unique amino acids at a codon position.
@@ -228,9 +250,7 @@ class SequenceSet:
 
         return {codon: count / total for codon, count in counts.items()}
 
-    def derived_allele_frequency(
-        self, codon_index: int, ancestral_codon: str
-    ) -> float | None:
+    def derived_allele_frequency(self, codon_index: int, ancestral_codon: str) -> float | None:
         """Calculate the derived allele frequency at a codon position.
 
         Args:
@@ -261,6 +281,9 @@ class SequenceSet:
             New SequenceSet containing only matching sequences
         """
         filtered = [seq for seq in self.sequences if pattern in seq.name]
+        # The new SequenceSet starts with an empty cache: the parent's cached
+        # codon sets contain codons from sequences that aren't in the filtered
+        # subset, so reusing them would yield wrong results.
         return SequenceSet(
             sequences=filtered,
             reading_frame=self.reading_frame,

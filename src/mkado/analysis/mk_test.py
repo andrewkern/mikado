@@ -6,7 +6,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from mkado.analysis.statistics import alpha, dos, fishers_exact, neutrality_index
+from mkado.analysis.statistics import (
+    alpha,
+    dos,
+    fishers_exact,
+    neutrality_index,
+    omega_decomposition,
+)
 from mkado.core.alignment import AlignedPair
 from mkado.core.codons import DEFAULT_CODE, GeneticCode
 from mkado.core.sequences import SequenceSet
@@ -48,19 +54,35 @@ class MKResult:
     """Proportion of adaptive substitutions ``1 - NI``."""
     dos: float | None
     """Direction of Selection ``Dn/(Dn+Ds) - Pn/(Pn+Ps)`` (Stoletzki & Eyre-Walker 2011)."""
+    ln: float | None = None
+    """Total non-synonymous sites (Nei-Gojobori) over analyzed codons."""
+    ls: float | None = None
+    """Total synonymous sites (Nei-Gojobori) over analyzed codons."""
+    omega: float | None = None
+    """``(Dn/Ds) * (Ls/Ln)`` — dN/dS ratio. ``None`` when undefined.
+
+    Note: this result class deliberately omits ``omega_a`` / ``omega_na``;
+    the per-gene Smith & Eyre-Walker alpha is too noisy to give a useful
+    rate decomposition. See ``docs/omega.rst`` for the rationale.
+    """
 
     def __str__(self) -> str:
         ni_str = f"{self.ni:.4f}" if self.ni is not None else "N/A"
         alpha_str = f"{self.alpha:.4f}" if self.alpha is not None else "N/A"
         dos_str = f"{self.dos:.4f}" if self.dos is not None else "N/A"
+        omega_str = f"{self.omega:.4f}" if self.omega is not None else "N/A"
+        ls_str = f"{self.ls:.2f}" if self.ls is not None else "N/A"
+        ln_str = f"{self.ln:.2f}" if self.ln is not None else "N/A"
         return (
             f"MK Test Results:\n"
             f"  Divergence:    Dn={self.dn}, Ds={self.ds}\n"
             f"  Polymorphism:  Pn={self.pn}, Ps={self.ps}\n"
+            f"  Sites:         Ln={ln_str}, Ls={ls_str}\n"
             f"  Fisher's exact p-value: {self.p_value:.4g}\n"
             f"  Neutrality Index (NI):  {ni_str}\n"
             f"  Alpha (α):              {alpha_str}\n"
-            f"  DoS:                    {dos_str}"
+            f"  DoS:                    {dos_str}\n"
+            f"  omega (dN/dS):          {omega_str}"
         )
 
     def to_dict(self) -> dict:
@@ -74,6 +96,9 @@ class MKResult:
             "ni": self.ni,
             "alpha": self.alpha,
             "dos": self.dos,
+            "ln": self.ln,
+            "ls": self.ls,
+            "omega": self.omega,
         }
 
 
@@ -195,6 +220,8 @@ def mk_test(
     ni = neutrality_index(dn, ds, pn, ps)
     a = alpha(dn, ds, pn, ps)
     d = dos(dn, ds, pn, ps)
+    ln, ls = pair.count_total_sites()
+    omega, _, _ = omega_decomposition(dn, ds, ln, ls, a)
 
     return MKResult(
         dn=dn,
@@ -205,11 +232,19 @@ def mk_test(
         ni=ni,
         alpha=a,
         dos=d,
+        ln=ln,
+        ls=ls,
+        omega=omega,
     )
 
 
 def mk_test_from_counts(
-    dn: int, ds: int, pn: int, ps: int
+    dn: int,
+    ds: int,
+    pn: int,
+    ps: int,
+    ln: float | None = None,
+    ls: float | None = None,
 ) -> MKResult:
     """Create MK test results from pre-computed counts.
 
@@ -220,6 +255,8 @@ def mk_test_from_counts(
         ds: Synonymous divergence
         pn: Non-synonymous polymorphisms
         ps: Synonymous polymorphisms
+        ln: Total non-synonymous sites (optional, enables omega computation)
+        ls: Total synonymous sites (optional, enables omega computation)
 
     Returns:
         MKResult with calculated statistics
@@ -228,6 +265,7 @@ def mk_test_from_counts(
     ni = neutrality_index(dn, ds, pn, ps)
     a = alpha(dn, ds, pn, ps)
     d = dos(dn, ds, pn, ps)
+    omega, _, _ = omega_decomposition(dn, ds, ln, ls, a)
 
     return MKResult(
         dn=dn,
@@ -238,4 +276,7 @@ def mk_test_from_counts(
         ni=ni,
         alpha=a,
         dos=d,
+        ln=ln,
+        ls=ls,
+        omega=omega,
     )

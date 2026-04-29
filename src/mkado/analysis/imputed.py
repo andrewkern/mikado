@@ -13,8 +13,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from mkado.analysis.asymptotic import PolymorphismData
-from mkado.analysis.statistics import fishers_exact
+from mkado.analysis.asymptotic import PolymorphismData, sum_site_totals
+from mkado.analysis.statistics import fishers_exact, omega_decomposition
 
 
 @dataclass
@@ -57,6 +57,16 @@ class ImputedMKResult:
     """Estimated DFE neutral fraction."""
     cutoff: float = 0.15
     """Derived allele frequency below which polymorphisms are treated as the imputation pool."""
+    ln: float | None = None
+    """Total non-synonymous sites (Nei-Gojobori) over analyzed codons."""
+    ls: float | None = None
+    """Total synonymous sites (Nei-Gojobori) over analyzed codons."""
+    omega: float | None = None
+    """``(Dn/Ds) * (Ls/Ln)`` — dN/dS ratio."""
+    omega_a: float | None = None
+    """Adaptive rate ``alpha * omega`` with imputed alpha (Gossmann, Keightley & Eyre-Walker 2012)."""
+    omega_na: float | None = None
+    """Non-adaptive component ``(1 - alpha) * omega``."""
 
     def __str__(self) -> str:
         alpha_str = f"{self.alpha:.4f}" if self.alpha is not None else "N/A"
@@ -70,6 +80,15 @@ class ImputedMKResult:
             f"  Alpha (α):     {alpha_str}",
             f"  p-value:       {self.p_value:.4g}",
         ]
+        if self.ln is not None and self.ls is not None:
+            lines.append(f"  Sites:         Ln={self.ln:.2f}, Ls={self.ls:.2f}")
+        if self.omega is not None:
+            omega_a_str = f"{self.omega_a:.4f}" if self.omega_a is not None else "N/A"
+            omega_na_str = f"{self.omega_na:.4f}" if self.omega_na is not None else "N/A"
+            lines.append(
+                f"  omega:         {self.omega:.4f} "
+                f"(omega_a={omega_a_str}, omega_na={omega_na_str})"
+            )
         if self.d is not None:
             lines.append(f"  DFE fractions: d={self.d:.4f}, b={self.b:.4f}, f={self.f:.4f}")
         return "\n".join(lines)
@@ -86,6 +105,11 @@ class ImputedMKResult:
             "pn_total": self.pn_total,
             "ps_total": self.ps_total,
             "cutoff": self.cutoff,
+            "ln": self.ln,
+            "ls": self.ls,
+            "omega": self.omega,
+            "omega_a": self.omega_a,
+            "omega_na": self.omega_na,
         }
         if self.d is not None:
             result["d"] = self.d
@@ -148,6 +172,12 @@ def _compute_imputed(
             f_frac = (m0 * pn_neutral) / (mi * ps_total)
             d_frac = 1.0 - f_frac - b_frac
 
+    # ``num_*_sites`` are aliases for Ls (m0) and Ln (mi) — the DFE inputs
+    # double as Nei-Gojobori site totals for the omega decomposition.
+    omega, omega_a, omega_na = omega_decomposition(
+        dn, ds, num_nonsynonymous_sites, num_synonymous_sites, alpha_val
+    )
+
     return ImputedMKResult(
         alpha=alpha_val,
         p_value=p_value,
@@ -161,6 +191,11 @@ def _compute_imputed(
         b=b_frac,
         f=f_frac,
         cutoff=cutoff,
+        ln=num_nonsynonymous_sites,
+        ls=num_synonymous_sites,
+        omega=omega,
+        omega_a=omega_a,
+        omega_na=omega_na,
     )
 
 
@@ -188,13 +223,15 @@ def imputed_mk_test(
     Returns:
         ImputedMKResult with corrected alpha and optionally DFE fractions
     """
+    ls = num_synonymous_sites if num_synonymous_sites is not None else gene_data.ls
+    ln = num_nonsynonymous_sites if num_nonsynonymous_sites is not None else gene_data.ln
     return _compute_imputed(
         gene_data.polymorphisms,
         gene_data.dn,
         gene_data.ds,
         cutoff,
-        num_synonymous_sites,
-        num_nonsynonymous_sites,
+        ls,
+        ln,
     )
 
 
@@ -227,11 +264,15 @@ def imputed_mk_test_multi(
         dn_total += g.dn
         ds_total += g.ds
 
+    ln_agg, ls_agg = sum_site_totals(gene_data)
+    ls = num_synonymous_sites if num_synonymous_sites is not None else ls_agg
+    ln = num_nonsynonymous_sites if num_nonsynonymous_sites is not None else ln_agg
+
     return _compute_imputed(
         all_polymorphisms,
         dn_total,
         ds_total,
         cutoff,
-        num_synonymous_sites,
-        num_nonsynonymous_sites,
+        ls,
+        ln,
     )

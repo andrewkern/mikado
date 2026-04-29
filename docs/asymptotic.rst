@@ -141,17 +141,26 @@ The asymptotic test reports:
 - **CI_low, CI_high**: 95% bootstrap confidence interval
 - **model_type**: Selected model (exponential or linear)
 - **a, b, c**: Fitted model parameters (c only for exponential)
+- **Ln, Ls**: Nei-Gojobori non-synonymous and synonymous site totals
+- **omega**: dN/dS ratio ``(Dn/Ds) * (Ls/Ln)``
+- **omega_a, omega_na**: Adaptive and non-adaptive substitution rates
+  (`Gossmann, Keightley & Eyre-Walker 2012`_; applied to MK counts by
+  `Coronado-Zamora et al. 2019`_)
+- **omega_a_CI_low/high, omega_na_CI_low/high**: 95% CIs derived analytically by scaling the alpha CI by omega (omega_na percentiles flip since ``(1 - alpha)`` is monotonically decreasing). See :doc:`omega` for the rationale.
 
 Example output (pretty format):
 
 .. code-block:: text
 
    Asymptotic MK Test Results:
-     Divergence:    Dn=18828, Ds=49857
-     Polymorphism:  Pn=7843, Ps=25083
-     Alpha (asymptotic): 0.5723
-     95% CI: [0.4879, 0.6567]
-     Model: exponential
+     Asymptotic α: 0.5723 (95% CI: 0.4879 - 0.6567)
+     Divergence: Dn=18828, Ds=49857
+     Polymorphism: Pn=7843, Ps=25083
+     Sites: Ln=42137.50, Ls=14752.83
+     omega: 0.2189 (omega_a=0.1252, omega_na=0.0936)
+       omega_a 95% CI:  (0.1068, 0.1437)
+       omega_na 95% CI: (0.0751, 0.1119)
+     Fit (exponential): α(x) = 0.6612 + (-0.4521) * exp(-3.214 * x)
 
 The Alpha(x) Plot
 -----------------
@@ -244,7 +253,13 @@ References
 
 .. _Haller & Messer 2017: https://doi.org/10.1534/g3.117.039693
 .. _Messer & Petrov (2013): https://doi.org/10.1073/pnas.1220835110
+.. _Gossmann, Keightley & Eyre-Walker 2012: https://doi.org/10.1093/gbe/evs027
+.. _Coronado-Zamora et al. 2019: https://doi.org/10.1093/gbe/evz046
 
 Haller BC, Messer PW (2017) asymptoticMK: A web-based tool for the asymptotic McDonald–Kreitman test. *G3: Genes, Genomes, Genetics* 7(5):1569-1575. https://doi.org/10.1534/g3.117.039693
 
 Messer PW, Petrov DA (2013) Frequent adaptation and the McDonald–Kreitman test. *PNAS* 110(21):8615-8620. https://doi.org/10.1073/pnas.1220835110
+
+Gossmann TI, Keightley PD, Eyre-Walker A (2012) The effect of variation in the effective population size on the rate of adaptive molecular evolution in eukaryotes. *Genome Biology and Evolution* 4(5):658-667. https://doi.org/10.1093/gbe/evs027
+
+Coronado-Zamora M, Salvador-Martínez I, Castellano D, Barbadilla A, Salazar-Ciudad I (2019) Adaptation and conservation throughout the *Drosophila melanogaster* life-cycle. *Genome Biology and Evolution* 11(5):1463-1482. https://doi.org/10.1093/gbe/evz046
