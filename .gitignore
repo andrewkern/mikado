@@ -12,3 +12,8 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Benchmark output (regenerable)
+examples/benchmarks/results/
+examples/benchmarks/figures/
+examples/benchmarks/cache/
