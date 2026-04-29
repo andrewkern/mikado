@@ -49,6 +49,19 @@ def validate_path_not_flag(value: Path | None) -> Path | None:
     return value
 
 
+def write_output(content: str, output_path: Path | None) -> None:
+    """Write formatted result content to a file, or to stdout if no path given.
+
+    A path of ``None`` or ``Path("-")`` means stdout (POSIX convention).
+    """
+    if output_path is None or str(output_path) == "-":
+        typer.echo(content)
+        return
+    text = content if content.endswith("\n") else content + "\n"
+    output_path.write_text(text)
+    typer.echo(f"Output written to {output_path}", err=True)
+
+
 def _collect_gene_data(
     worker_results: list[WorkerResult],
     mode_label: str,
@@ -221,7 +234,10 @@ app = typer.Typer(
     name="mkado",
     help="MKado 御門: McDonald-Kreitman test toolkit.\n\n"
     "A modern Python implementation for detecting selection using "
-    "the McDonald-Kreitman test and related methods.",
+    "the McDonald-Kreitman test and related methods.\n\n"
+    "Shell completion: --install-completion sets up tab completion for "
+    "your shell (bash/zsh/fish/powershell); --show-completion prints the "
+    "completion script without installing it.",
     no_args_is_help=True,
 )
 
@@ -343,6 +359,15 @@ def test(
         typer.Option(
             "--plot-asymptotic",
             help="Generate alpha(x) plot for asymptotic test (PNG, PDF, or SVG)",
+            callback=validate_path_not_flag,
+        ),
+    ] = None,
+    output: Annotated[
+        Optional[Path],
+        typer.Option(
+            "--output",
+            "-O",
+            help="Write formatted result to this file (default: stdout). Use '-' for stdout.",
             callback=validate_path_not_flag,
         ),
     ] = None,
@@ -622,7 +647,7 @@ def test(
                 genetic_code=genetic_code,
             )
 
-    typer.echo(format_result(result, fmt))
+    write_output(format_result(result, fmt), output)
 
     # Generate asymptotic plot if requested
     if plot_asymptotic and use_asymptotic:
@@ -786,6 +811,15 @@ def batch(
         typer.Option(
             "--plot-asymptotic",
             help="Generate alpha(x) plot for aggregated asymptotic test (PNG, PDF, or SVG)",
+            callback=validate_path_not_flag,
+        ),
+    ] = None,
+    output: Annotated[
+        Optional[Path],
+        typer.Option(
+            "--output",
+            "-O",
+            help="Write formatted results to this file (default: stdout). Use '-' for stdout.",
             callback=validate_path_not_flag,
         ),
     ] = None,
@@ -981,7 +1015,7 @@ def batch(
                     gene_data=gene_data_list,
                     bootstrap_replicates=bootstrap,
                 )
-                typer.echo(format_result(result, fmt))
+                write_output(format_result(result, fmt), output)
             else:
                 typer.echo("No valid gene data extracted", err=True)
             return
@@ -1008,7 +1042,7 @@ def batch(
                     ci_replicates=bootstrap * 100,
                     frequency_cutoffs=frequency_cutoffs,
                 )
-                typer.echo(format_result(result, fmt))
+                write_output(format_result(result, fmt), output)
 
                 # Generate asymptotic plot if requested
                 if plot_asymptotic:
@@ -1044,7 +1078,7 @@ def batch(
                     gene_data=gene_data_list,
                     cutoff=imputed_cutoff,
                 )
-                typer.echo(format_result(result, fmt))
+                write_output(format_result(result, fmt), output)
             else:
                 typer.echo("No valid gene data extracted", err=True)
             return
@@ -1167,7 +1201,7 @@ def batch(
                     gene_data=gene_data_list,
                     bootstrap_replicates=bootstrap,
                 )
-                typer.echo(format_result(result, fmt))
+                write_output(format_result(result, fmt), output)
             else:
                 typer.echo("No valid gene data extracted", err=True)
             return
@@ -1194,7 +1228,7 @@ def batch(
                     ci_replicates=bootstrap * 100,
                     frequency_cutoffs=frequency_cutoffs,
                 )
-                typer.echo(format_result(result, fmt))
+                write_output(format_result(result, fmt), output)
 
                 # Generate asymptotic plot if requested
                 if plot_asymptotic:
@@ -1230,7 +1264,7 @@ def batch(
                     gene_data=gene_data_list,
                     cutoff=imputed_cutoff,
                 )
-                typer.echo(format_result(result, fmt))
+                write_output(format_result(result, fmt), output)
             else:
                 typer.echo("No valid gene data extracted", err=True)
             return
@@ -1245,7 +1279,7 @@ def batch(
 
     if results:
         adjusted_pvalues = compute_adjusted_pvalues(results)
-        typer.echo(format_batch_results(results, fmt, adjusted_pvalues))
+        write_output(format_batch_results(results, fmt, adjusted_pvalues), output)
 
         # Generate volcano plot if requested
         if volcano:
@@ -1426,6 +1460,15 @@ def vcf(
         bool,
         typer.Option("--verbose", help="Show warnings from htslib/VCF parsing"),
     ] = False,
+    output: Annotated[
+        Optional[Path],
+        typer.Option(
+            "--output",
+            "-O",
+            help="Write formatted results to this file (default: stdout). Use '-' for stdout.",
+            callback=validate_path_not_flag,
+        ),
+    ] = None,
 ) -> None:
     """Run MK test from VCF + reference + GFF3 annotation.
 
@@ -1641,7 +1684,7 @@ def vcf(
 
     # Single gene mode: output single result
     if gene and len(worker_results) == 1:
-        typer.echo(format_result(worker_results[0].result, fmt))
+        write_output(format_result(worker_results[0].result, fmt), output)
         return
 
     # Alpha TG mode
@@ -1657,7 +1700,7 @@ def vcf(
                 gene_data=gene_data_list,
                 bootstrap_replicates=bootstrap,
             )
-            typer.echo(format_result(result, fmt))
+            write_output(format_result(result, fmt), output)
         else:
             typer.echo("No valid gene data extracted", err=True)
         return
@@ -1674,7 +1717,7 @@ def vcf(
                 ci_replicates=bootstrap * 100,
                 frequency_cutoffs=frequency_cutoffs,
             )
-            typer.echo(format_result(result, fmt))
+            write_output(format_result(result, fmt), output)
             if plot_asymptotic:
                 from mkado.io.plotting import create_asymptotic_plot
 
@@ -1698,7 +1741,7 @@ def vcf(
                 gene_data=gene_data_list,
                 cutoff=imputed_cutoff,
             )
-            typer.echo(format_result(result, fmt))
+            write_output(format_result(result, fmt), output)
         else:
             typer.echo("No valid gene data extracted", err=True)
         return
@@ -1724,7 +1767,7 @@ def vcf(
 
     if results_list:
         adjusted_pvalues = compute_adjusted_pvalues(results_list)
-        typer.echo(format_batch_results(results_list, fmt, adjusted_pvalues))
+        write_output(format_batch_results(results_list, fmt, adjusted_pvalues), output)
 
         # Generate volcano plot if requested
         if volcano:
