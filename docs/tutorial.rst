@@ -135,6 +135,9 @@ The output reports which model was selected (exponential or linear) along with t
    # Customize number of frequency bins
    mkado test examples/anopheles_batch/AGAP000078.fa -i gamb -o afun -a -b 20
 
+   # Switch to the Uricchio et al. 2019 cumulative SFS (more sample-size-stable)
+   mkado test examples/anopheles_batch/AGAP000078.fa -i gamb -o afun -a --sfs-mode above
+
 The output includes:
 
 - **Alpha asymptotic**: Extrapolated alpha value at derived frequency = 1
@@ -142,6 +145,8 @@ The output includes:
 - **ci_method**: ``"monte-carlo"`` (default — parametric MVN sampling from the
   fit covariance) or ``"bootstrap"`` (case-resampling). Switch with
   ``--ci-method bootstrap``. See :doc:`asymptotic` for the trade-offs.
+- **sfs_mode**: ``"at"`` (default, per-bin SFS) or ``"above"`` (cumulative
+  SFS as in Uricchio et al. 2019). See :doc:`asymptotic` for the difference.
 - **Model type**: Whether exponential or linear model was selected
 - **Per-bin alpha values**: Alpha estimates at each frequency class
 - **omega, omega_a, omega_na**: dN/dS and its adaptive / non-adaptive
