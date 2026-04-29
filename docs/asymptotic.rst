@@ -43,6 +43,33 @@ Where:
 
 As *x* approaches 1.0, deleterious polymorphisms are increasingly purged, and α(x) converges to the true proportion of adaptive substitutions.
 
+SFS Construction: At-x vs Above-x
+---------------------------------
+
+MKado supports two definitions of P\ :sub:`n`\ (x) and P\ :sub:`s`\ (x) — the per-bin form from `Messer & Petrov 2013`_ and the cumulative form introduced by `Uricchio et al. 2019`_. They share the asymptote at *x* = 1 but differ in finite-sample stability.
+
+**At-x mode** (``--sfs-mode at``, default):
+
+.. math::
+
+   P_n(x), P_s(x) = \text{count of polymorphisms in bin centered at } x
+
+This is the per-bin SFS. At large sample sizes the high-frequency bins become sparse, which inflates the per-bin α(x) noise and destabilizes the curve fit.
+
+**Above-x mode** (``--sfs-mode above``):
+
+.. math::
+
+   P_n(x), P_s(x) = \text{count of polymorphisms with derived frequency } \ge x
+
+This is the inclusive right-tail cumulative SFS. The two modes share the asymptote at *x* = 1 (where both definitions go to zero), but the cumulative form averages out per-bin noise and is more stable as sample size grows.
+
+The default is ``at`` for backward compatibility. The ``above`` form follows the convention used by `MKtest.jl <https://github.com/jmurga/MKtest.jl>`_ and the analyses in Uricchio et al. 2019; pass ``--sfs-mode above`` to switch.
+
+.. code-block:: bash
+
+   mkado batch alignments/ -i ingroup -o outgroup -a --sfs-mode above
+
 Determining Derived Allele Frequency
 ------------------------------------
 
@@ -284,13 +311,17 @@ References
 ----------
 
 .. _Haller & Messer 2017: https://doi.org/10.1534/g3.117.039693
+.. _Messer & Petrov 2013: https://doi.org/10.1073/pnas.1220835110
 .. _Messer & Petrov (2013): https://doi.org/10.1073/pnas.1220835110
+.. _Uricchio et al. 2019: https://doi.org/10.1038/s41559-019-0890-6
 .. _Gossmann, Keightley & Eyre-Walker 2012: https://doi.org/10.1093/gbe/evs027
 .. _Coronado-Zamora et al. 2019: https://doi.org/10.1093/gbe/evz046
 
 Haller BC, Messer PW (2017) asymptoticMK: A web-based tool for the asymptotic McDonald–Kreitman test. *G3: Genes, Genomes, Genetics* 7(5):1569-1575. https://doi.org/10.1534/g3.117.039693
 
 Messer PW, Petrov DA (2013) Frequent adaptation and the McDonald–Kreitman test. *PNAS* 110(21):8615-8620. https://doi.org/10.1073/pnas.1220835110
+
+Uricchio LH, Petrov DA, Enard D (2019) Exploiting selection at linked sites to infer the rate and strength of adaptation. *Nature Ecology & Evolution* 3:977-984. https://doi.org/10.1038/s41559-019-0890-6
 
 Gossmann TI, Keightley PD, Eyre-Walker A (2012) The effect of variation in the effective population size on the rate of adaptive molecular evolution in eukaryotes. *Genome Biology and Evolution* 4(5):658-667. https://doi.org/10.1093/gbe/evs027
 

@@ -10,98 +10,250 @@ from itertools import permutations
 
 # Standard genetic code (NCBI table 1)
 STANDARD_CODE: dict[str, str] = {
-    "TTT": "F", "TTC": "F", "TTA": "L", "TTG": "L",
-    "TCT": "S", "TCC": "S", "TCA": "S", "TCG": "S",
-    "TAT": "Y", "TAC": "Y", "TAA": "*", "TAG": "*",
-    "TGT": "C", "TGC": "C", "TGA": "*", "TGG": "W",
-    "CTT": "L", "CTC": "L", "CTA": "L", "CTG": "L",
-    "CCT": "P", "CCC": "P", "CCA": "P", "CCG": "P",
-    "CAT": "H", "CAC": "H", "CAA": "Q", "CAG": "Q",
-    "CGT": "R", "CGC": "R", "CGA": "R", "CGG": "R",
-    "ATT": "I", "ATC": "I", "ATA": "I", "ATG": "M",
-    "ACT": "T", "ACC": "T", "ACA": "T", "ACG": "T",
-    "AAT": "N", "AAC": "N", "AAA": "K", "AAG": "K",
-    "AGT": "S", "AGC": "S", "AGA": "R", "AGG": "R",
-    "GTT": "V", "GTC": "V", "GTA": "V", "GTG": "V",
-    "GCT": "A", "GCC": "A", "GCA": "A", "GCG": "A",
-    "GAT": "D", "GAC": "D", "GAA": "E", "GAG": "E",
-    "GGT": "G", "GGC": "G", "GGA": "G", "GGG": "G",
+    "TTT": "F",
+    "TTC": "F",
+    "TTA": "L",
+    "TTG": "L",
+    "TCT": "S",
+    "TCC": "S",
+    "TCA": "S",
+    "TCG": "S",
+    "TAT": "Y",
+    "TAC": "Y",
+    "TAA": "*",
+    "TAG": "*",
+    "TGT": "C",
+    "TGC": "C",
+    "TGA": "*",
+    "TGG": "W",
+    "CTT": "L",
+    "CTC": "L",
+    "CTA": "L",
+    "CTG": "L",
+    "CCT": "P",
+    "CCC": "P",
+    "CCA": "P",
+    "CCG": "P",
+    "CAT": "H",
+    "CAC": "H",
+    "CAA": "Q",
+    "CAG": "Q",
+    "CGT": "R",
+    "CGC": "R",
+    "CGA": "R",
+    "CGG": "R",
+    "ATT": "I",
+    "ATC": "I",
+    "ATA": "I",
+    "ATG": "M",
+    "ACT": "T",
+    "ACC": "T",
+    "ACA": "T",
+    "ACG": "T",
+    "AAT": "N",
+    "AAC": "N",
+    "AAA": "K",
+    "AAG": "K",
+    "AGT": "S",
+    "AGC": "S",
+    "AGA": "R",
+    "AGG": "R",
+    "GTT": "V",
+    "GTC": "V",
+    "GTA": "V",
+    "GTG": "V",
+    "GCT": "A",
+    "GCC": "A",
+    "GCA": "A",
+    "GCG": "A",
+    "GAT": "D",
+    "GAC": "D",
+    "GAA": "E",
+    "GAG": "E",
+    "GGT": "G",
+    "GGC": "G",
+    "GGA": "G",
+    "GGG": "G",
 }
 
 # NCBI genetic code tables
 # Each table is defined by its differences from the standard code.
 # Format: {table_id: (name, {codon: amino_acid, ...})}
 _CODE_DIFFS: dict[int, tuple[str, dict[str, str]]] = {
-    2: ("Vertebrate Mitochondrial", {
-        "AGA": "*", "AGG": "*", "ATA": "M", "TGA": "W",
-    }),
-    3: ("Yeast Mitochondrial", {
-        "ATA": "M", "CTT": "T", "CTC": "T", "CTA": "T", "CTG": "T",
-        "TGA": "W",
-    }),
-    4: ("Mold, Protozoan, Coelenterate Mitochondrial; Mycoplasma; Spiroplasma", {
-        "TGA": "W",
-    }),
-    5: ("Invertebrate Mitochondrial", {
-        "AGA": "S", "AGG": "S", "ATA": "M", "TGA": "W",
-    }),
-    6: ("Ciliate, Dasycladacean and Hexamita Nuclear", {
-        "TAA": "Q", "TAG": "Q",
-    }),
-    9: ("Echinoderm and Flatworm Mitochondrial", {
-        "AAA": "N", "AGA": "S", "AGG": "S", "TGA": "W",
-    }),
-    10: ("Euplotid Nuclear", {
-        "TGA": "C",
-    }),
-    11: ("Bacterial, Archaeal and Plant Plastid", {
-        # Identical to standard code for amino acid assignments
-    }),
-    12: ("Alternative Yeast Nuclear", {
-        "CTG": "S",
-    }),
-    13: ("Ascidian Mitochondrial", {
-        "AGA": "G", "AGG": "G", "ATA": "M", "TGA": "W",
-    }),
-    14: ("Alternative Flatworm Mitochondrial", {
-        "AAA": "N", "AGA": "S", "AGG": "S", "TAA": "Y", "TGA": "W",
-    }),
-    16: ("Chlorophycean Mitochondrial", {
-        "TAG": "L",
-    }),
-    21: ("Trematode Mitochondrial", {
-        "AAA": "N", "AGA": "S", "AGG": "S", "ATA": "M", "TGA": "W",
-    }),
-    22: ("Scenedesmus obliquus Mitochondrial", {
-        "TAG": "L", "TCA": "*",
-    }),
-    23: ("Thraustochytrium Mitochondrial", {
-        "TTA": "*",
-    }),
-    24: ("Rhabdopleuridae Mitochondrial", {
-        "AGA": "S", "AGG": "K", "TGA": "W",
-    }),
-    25: ("Candidate Division SR1 and Gracilibacteria", {
-        "TGA": "G",
-    }),
-    26: ("Pachysolen tannophilus Nuclear", {
-        "CTG": "A",
-    }),
-    27: ("Karyorelictea Nuclear", {
-        "TAA": "Q", "TAG": "Q", "TGA": "W",
-    }),
-    29: ("Mesodinium Nuclear", {
-        "TAA": "Y", "TAG": "Y",
-    }),
-    30: ("Peritrich Nuclear", {
-        "TAA": "E", "TAG": "E",
-    }),
-    31: ("Blastocrithidia Nuclear", {
-        "TGA": "W",
-    }),
-    33: ("Cephalodiscidae Mitochondrial UAA-Tyr", {
-        "AGA": "S", "AGG": "K", "TAA": "Y", "TGA": "W",
-    }),
+    2: (
+        "Vertebrate Mitochondrial",
+        {
+            "AGA": "*",
+            "AGG": "*",
+            "ATA": "M",
+            "TGA": "W",
+        },
+    ),
+    3: (
+        "Yeast Mitochondrial",
+        {
+            "ATA": "M",
+            "CTT": "T",
+            "CTC": "T",
+            "CTA": "T",
+            "CTG": "T",
+            "TGA": "W",
+        },
+    ),
+    4: (
+        "Mold, Protozoan, Coelenterate Mitochondrial; Mycoplasma; Spiroplasma",
+        {
+            "TGA": "W",
+        },
+    ),
+    5: (
+        "Invertebrate Mitochondrial",
+        {
+            "AGA": "S",
+            "AGG": "S",
+            "ATA": "M",
+            "TGA": "W",
+        },
+    ),
+    6: (
+        "Ciliate, Dasycladacean and Hexamita Nuclear",
+        {
+            "TAA": "Q",
+            "TAG": "Q",
+        },
+    ),
+    9: (
+        "Echinoderm and Flatworm Mitochondrial",
+        {
+            "AAA": "N",
+            "AGA": "S",
+            "AGG": "S",
+            "TGA": "W",
+        },
+    ),
+    10: (
+        "Euplotid Nuclear",
+        {
+            "TGA": "C",
+        },
+    ),
+    11: (
+        "Bacterial, Archaeal and Plant Plastid",
+        {
+            # Identical to standard code for amino acid assignments
+        },
+    ),
+    12: (
+        "Alternative Yeast Nuclear",
+        {
+            "CTG": "S",
+        },
+    ),
+    13: (
+        "Ascidian Mitochondrial",
+        {
+            "AGA": "G",
+            "AGG": "G",
+            "ATA": "M",
+            "TGA": "W",
+        },
+    ),
+    14: (
+        "Alternative Flatworm Mitochondrial",
+        {
+            "AAA": "N",
+            "AGA": "S",
+            "AGG": "S",
+            "TAA": "Y",
+            "TGA": "W",
+        },
+    ),
+    16: (
+        "Chlorophycean Mitochondrial",
+        {
+            "TAG": "L",
+        },
+    ),
+    21: (
+        "Trematode Mitochondrial",
+        {
+            "AAA": "N",
+            "AGA": "S",
+            "AGG": "S",
+            "ATA": "M",
+            "TGA": "W",
+        },
+    ),
+    22: (
+        "Scenedesmus obliquus Mitochondrial",
+        {
+            "TAG": "L",
+            "TCA": "*",
+        },
+    ),
+    23: (
+        "Thraustochytrium Mitochondrial",
+        {
+            "TTA": "*",
+        },
+    ),
+    24: (
+        "Rhabdopleuridae Mitochondrial",
+        {
+            "AGA": "S",
+            "AGG": "K",
+            "TGA": "W",
+        },
+    ),
+    25: (
+        "Candidate Division SR1 and Gracilibacteria",
+        {
+            "TGA": "G",
+        },
+    ),
+    26: (
+        "Pachysolen tannophilus Nuclear",
+        {
+            "CTG": "A",
+        },
+    ),
+    27: (
+        "Karyorelictea Nuclear",
+        {
+            "TAA": "Q",
+            "TAG": "Q",
+            "TGA": "W",
+        },
+    ),
+    29: (
+        "Mesodinium Nuclear",
+        {
+            "TAA": "Y",
+            "TAG": "Y",
+        },
+    ),
+    30: (
+        "Peritrich Nuclear",
+        {
+            "TAA": "E",
+            "TAG": "E",
+        },
+    ),
+    31: (
+        "Blastocrithidia Nuclear",
+        {
+            "TGA": "W",
+        },
+    ),
+    33: (
+        "Cephalodiscidae Mitochondrial UAA-Tyr",
+        {
+            "AGA": "S",
+            "AGG": "K",
+            "TAA": "Y",
+            "TGA": "W",
+        },
+    ),
 }
 
 
@@ -159,8 +311,7 @@ def resolve_code_table(name_or_id: str) -> int:
         if table_id == 1 or table_id in _CODE_DIFFS:
             return table_id
         raise ValueError(
-            f"Unknown genetic code table {table_id}. "
-            f"Run 'mkado codes' to see available tables."
+            f"Unknown genetic code table {table_id}. Run 'mkado codes' to see available tables."
         )
 
     # Try name alias
@@ -169,8 +320,7 @@ def resolve_code_table(name_or_id: str) -> int:
         return _CODE_ALIASES[key]
 
     raise ValueError(
-        f"Unknown genetic code '{name_or_id}'. "
-        f"Run 'mkado codes' to see available tables."
+        f"Unknown genetic code '{name_or_id}'. Run 'mkado codes' to see available tables."
     )
 
 
@@ -210,9 +360,7 @@ def available_code_tables() -> list[tuple[int, str, list[str]]]:
     for alias, tid in _CODE_ALIASES.items():
         aliases_by_id.setdefault(tid, []).append(alias)
 
-    tables: list[tuple[int, str, list[str]]] = [
-        (1, "Standard", aliases_by_id.get(1, []))
-    ]
+    tables: list[tuple[int, str, list[str]]] = [(1, "Standard", aliases_by_id.get(1, []))]
     for table_id in sorted(_CODE_DIFFS.keys()):
         tables.append((table_id, _CODE_DIFFS[table_id][0], aliases_by_id.get(table_id, [])))
     return tables

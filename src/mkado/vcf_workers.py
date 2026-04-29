@@ -38,6 +38,7 @@ class VcfBatchTask:
     imputed_cutoff: float = 0.15
     extract_only: bool = False
     ci_method: str = "monte-carlo"
+    sfs_mode: str = "at"
 
 
 @dataclass
@@ -120,6 +121,7 @@ def _process_single_gene(
                 num_bins=task.bins,
                 ci_replicates=ci_replicates,
                 ci_method=task.ci_method,
+                sfs_mode=task.sfs_mode,
             )
             return WorkerResult(gene_id=task.gene_id, result=result, warning=warning)
 
@@ -252,6 +254,7 @@ def process_vcf_gene(task: VcfBatchTask) -> WorkerResult:
                 num_bins=task.bins,
                 ci_replicates=ci_replicates,
                 ci_method=task.ci_method,
+                sfs_mode=task.sfs_mode,
             )
             return WorkerResult(gene_id=task.gene_id, result=result, warning=warning)
 

@@ -71,12 +71,33 @@ CIMethodOption = Annotated[
     ),
 ]
 
+SfsModeOption = Annotated[
+    str,
+    typer.Option(
+        "--sfs-mode",
+        help="Asymptotic-MK SFS construction: 'at' (default, Messer & Petrov 2013, "
+        "per-bin counts) or 'above' (Uricchio et al. 2019, inclusive right-tail "
+        "cumulative counts). Both modes share the asymptote at x=1 but 'above' "
+        "is more sample-size-stable. Ignored when --asymptotic is not set.",
+    ),
+]
+
 
 def validate_ci_method(ci_method: str) -> None:
     """Reject any ``--ci-method`` value other than the two supported strings."""
     if ci_method not in ("monte-carlo", "bootstrap"):
         typer.echo(
             f"Error: Invalid --ci-method '{ci_method}'. Use 'monte-carlo' or 'bootstrap'.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+
+def validate_sfs_mode(sfs_mode: str) -> None:
+    """Reject any ``--sfs-mode`` value other than 'at' or 'above'."""
+    if sfs_mode not in ("at", "above"):
+        typer.echo(
+            f"Error: Invalid --sfs-mode '{sfs_mode}'. Use 'at' or 'above'.",
             err=True,
         )
         raise typer.Exit(1)
@@ -366,6 +387,7 @@ def test(
         typer.Option("--bootstrap", help="Bootstrap replicates for CI (asymptotic)"),
     ] = 100,
     ci_method: CIMethodOption = "monte-carlo",
+    sfs_mode: SfsModeOption = "at",
     # === Common options ===
     output_format: Annotated[
         str,
@@ -445,6 +467,7 @@ def test(
         raise typer.Exit(1)
 
     validate_ci_method(ci_method)
+    validate_sfs_mode(sfs_mode)
 
     # Validate option compatibility
     if use_asymptotic and min_freq > 0.0:
@@ -570,6 +593,7 @@ def test(
                 bootstrap_replicates=bootstrap,
                 pool_polymorphisms=pool_polymorphisms,
                 genetic_code=genetic_code,
+                sfs_mode=sfs_mode,
             )
         elif use_imputed:
             from mkado.analysis.asymptotic import extract_polymorphism_data
@@ -652,6 +676,7 @@ def test(
                 bootstrap_replicates=bootstrap,
                 pool_polymorphisms=pool_polymorphisms,
                 genetic_code=genetic_code,
+                sfs_mode=sfs_mode,
             )
         elif use_imputed:
             from mkado.analysis.asymptotic import extract_polymorphism_data
@@ -797,6 +822,7 @@ def batch(
         typer.Option("--bootstrap", help="Bootstrap replicates (asymptotic)"),
     ] = 100,
     ci_method: CIMethodOption = "monte-carlo",
+    sfs_mode: SfsModeOption = "at",
     freq_cutoffs: Annotated[
         str,
         typer.Option("--freq-cutoffs", help="Frequency range 'low,high' (asymptotic)"),
@@ -892,6 +918,7 @@ def batch(
         mkado batch genes/ --ingroup-pattern "*_in.fa" --outgroup-pattern "*_out.fa"
     """
     validate_ci_method(ci_method)
+    validate_sfs_mode(sfs_mode)
 
     if output_format not in ("pretty", "tsv", "json"):
         typer.echo(f"Error: Invalid format '{output_format}'.", err=True)
@@ -1024,6 +1051,7 @@ def batch(
                 or (use_imputed and aggregate),
                 code_table=code_table_id,
                 ci_method=ci_method,
+                sfs_mode=sfs_mode,
             )
             for f in alignment_files
         ]
@@ -1075,6 +1103,7 @@ def batch(
                     ci_replicates=ci_replicates,
                     frequency_cutoffs=frequency_cutoffs,
                     ci_method=ci_method,
+                    sfs_mode=sfs_mode,
                 )
                 write_output(format_result(result, fmt), output)
 
@@ -1205,6 +1234,7 @@ def batch(
                     or alpha_tg
                     or (use_imputed and aggregate),
                     code_table=code_table_id,
+                    sfs_mode=sfs_mode,
                 )
             )
 
@@ -1262,6 +1292,7 @@ def batch(
                     ci_replicates=ci_replicates,
                     frequency_cutoffs=frequency_cutoffs,
                     ci_method=ci_method,
+                    sfs_mode=sfs_mode,
                 )
                 write_output(format_result(result, fmt), output)
 
@@ -1448,6 +1479,7 @@ def vcf(
         typer.Option("--bootstrap", help="Bootstrap replicates"),
     ] = 100,
     ci_method: CIMethodOption = "monte-carlo",
+    sfs_mode: SfsModeOption = "at",
     freq_cutoffs: Annotated[
         str,
         typer.Option("--freq-cutoffs", help="Frequency range 'low,high' (asymptotic)"),
@@ -1533,6 +1565,7 @@ def vcf(
         raise typer.Exit(1)
 
     validate_ci_method(ci_method)
+    validate_sfs_mode(sfs_mode)
 
     # Validate file existence
     for path, name in [(vcf_file, "--vcf"), (ref, "--ref"), (gff, "--gff")]:
@@ -1646,6 +1679,7 @@ def vcf(
             imputed_cutoff=imputed_cutoff,
             extract_only=is_aggregate or (gene is None and not use_asymptotic and not use_imputed),
             ci_method=ci_method,
+            sfs_mode=sfs_mode,
         )
         for cds in cds_regions
     ]
@@ -1747,6 +1781,7 @@ def vcf(
                 ci_replicates=ci_replicates,
                 frequency_cutoffs=frequency_cutoffs,
                 ci_method=ci_method,
+                sfs_mode=sfs_mode,
             )
             write_output(format_result(result, fmt), output)
             if plot_asymptotic:

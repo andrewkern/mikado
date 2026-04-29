@@ -324,7 +324,9 @@ def test_malformed_lines_skipped(tmp_path: Path, caplog):
     assert len(regions) == 1
     assert regions[0].gene_id == "gene1"
     # Should warn about malformed lines
-    assert any("malformed" in msg.lower() or "skipping line" in msg.lower() for msg in caplog.messages)
+    assert any(
+        "malformed" in msg.lower() or "skipping line" in msg.lower() for msg in caplog.messages
+    )
 
 
 def test_non_integer_coordinates(tmp_path: Path, caplog):
@@ -640,15 +642,15 @@ def test_orphan_cds_warning_broken_ids(tmp_path: Path, caplog):
     # 3 properly structured genes
     for i in range(1, 4):
         s = i * 100
-        lines.append(f"chr1\t.\tgene\t{s}\t{s+8}\t.\t+\t.\tID=gene{i}")
-        lines.append(f"chr1\t.\tmRNA\t{s}\t{s+8}\t.\t+\t.\tID=tx{i};Parent=gene{i}")
-        lines.append(f"chr1\t.\tCDS\t{s}\t{s+8}\t.\t+\t0\tID=cds{i};Parent=tx{i}")
+        lines.append(f"chr1\t.\tgene\t{s}\t{s + 8}\t.\t+\t.\tID=gene{i}")
+        lines.append(f"chr1\t.\tmRNA\t{s}\t{s + 8}\t.\t+\t.\tID=tx{i};Parent=gene{i}")
+        lines.append(f"chr1\t.\tCDS\t{s}\t{s + 8}\t.\t+\t0\tID=cds{i};Parent=tx{i}")
     # 5 genes where mRNA has no ID — CDS parent won't resolve
     for i in range(4, 9):
         s = i * 100
-        lines.append(f"chr1\t.\tgene\t{s}\t{s+8}\t.\t+\t.\tID=gene{i}")
-        lines.append(f"chr1\t.\tmRNA\t{s}\t{s+8}\t.\t+\t.\tParent=gene{i}")
-        lines.append(f"chr1\t.\tCDS\t{s}\t{s+8}\t.\t+\t0\tID=cds{i};Parent=orphan_tx{i}")
+        lines.append(f"chr1\t.\tgene\t{s}\t{s + 8}\t.\t+\t.\tID=gene{i}")
+        lines.append(f"chr1\t.\tmRNA\t{s}\t{s + 8}\t.\t+\t.\tParent=gene{i}")
+        lines.append(f"chr1\t.\tCDS\t{s}\t{s + 8}\t.\t+\t0\tID=cds{i};Parent=orphan_tx{i}")
 
     gff_path = tmp_path / "broken_ids.gff3"
     gff_path.write_text("\n".join(lines) + "\n")

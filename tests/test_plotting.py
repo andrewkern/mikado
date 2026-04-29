@@ -19,7 +19,10 @@ class TestVolcanoPlot:
         results = [
             ("gene1", MKResult(dn=10, ds=20, pn=5, ps=10, p_value=0.5, ni=1.0, alpha=0.0, dos=0.0)),
             ("gene2", MKResult(dn=15, ds=10, pn=3, ps=8, p_value=0.01, ni=0.5, alpha=0.5, dos=0.3)),
-            ("gene3", MKResult(dn=8, ds=25, pn=6, ps=12, p_value=0.001, ni=1.5, alpha=-0.5, dos=-0.1)),
+            (
+                "gene3",
+                MKResult(dn=8, ds=25, pn=6, ps=12, p_value=0.001, ni=1.5, alpha=-0.5, dos=-0.1),
+            ),
         ]
 
         with TemporaryDirectory() as tmpdir:
@@ -82,7 +85,10 @@ class TestVolcanoPlot:
         results = [
             ("gene1", MKResult(dn=10, ds=20, pn=5, ps=10, p_value=0.5, ni=1.0, alpha=0.0, dos=0.0)),
             ("gene2", MKResult(dn=15, ds=10, pn=0, ps=8, p_value=1.0, ni=0.0, alpha=1.0, dos=0.6)),
-            ("gene3", MKResult(dn=8, ds=25, pn=6, ps=0, p_value=1.0, ni=None, alpha=None, dos=-0.76)),
+            (
+                "gene3",
+                MKResult(dn=8, ds=25, pn=6, ps=0, p_value=1.0, ni=None, alpha=None, dos=-0.76),
+            ),
         ]
 
         with TemporaryDirectory() as tmpdir:
@@ -93,8 +99,14 @@ class TestVolcanoPlot:
     def test_volcano_plot_no_valid_data(self) -> None:
         """Test that ValueError is raised when no valid data."""
         results = [
-            ("gene1", MKResult(dn=10, ds=20, pn=0, ps=10, p_value=1.0, ni=0.0, alpha=1.0, dos=0.33)),
-            ("gene2", MKResult(dn=15, ds=10, pn=0, ps=8, p_value=1.0, ni=None, alpha=None, dos=0.6)),
+            (
+                "gene1",
+                MKResult(dn=10, ds=20, pn=0, ps=10, p_value=1.0, ni=0.0, alpha=1.0, dos=0.33),
+            ),
+            (
+                "gene2",
+                MKResult(dn=15, ds=10, pn=0, ps=8, p_value=1.0, ni=None, alpha=None, dos=0.6),
+            ),
         ]
 
         with TemporaryDirectory() as tmpdir:

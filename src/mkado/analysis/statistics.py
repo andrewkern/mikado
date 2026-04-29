@@ -7,9 +7,7 @@ import math
 from scipy import stats
 
 
-def fishers_exact(
-    dn: int, ds: int, pn: int, ps: int, alternative: str = "two-sided"
-) -> float:
+def fishers_exact(dn: int, ds: int, pn: int, ps: int, alternative: str = "two-sided") -> float:
     """Perform Fisher's exact test on a 2x2 contingency table.
 
     The table is:
