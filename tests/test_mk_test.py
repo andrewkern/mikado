@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from mkado.analysis.mk_test import MKResult, mk_test, mk_test_from_counts
+from mkado.analysis.mk_test import mk_test, mk_test_from_counts
 from mkado.analysis.statistics import alpha, dos, fishers_exact, neutrality_index
 from mkado.core.sequences import SequenceSet
 
@@ -329,20 +329,19 @@ ATGATGATG
 
         assert total_poly_filtered <= total_poly_no_filter
 
-
     def test_mk_test_singleton_exclusion(self, tmp_path: Path) -> None:
-            """min_frequency=1/n must exclude singletons.
+        """min_frequency=1/n must exclude singletons.
 
-            Setting min_frequency to exactly 1/n can fail to
-            exclude singletons due to floating point. For n=4, derived_freq
-            computes to exactly 0.25 and 1/n = 0.25, so 0.25 < 0.25 is False
-            and the singleton passes through. 
-            """
-            n = 4
-            # 4 sequences: 3 ancestral (ATG), 1 derived (CTG) at codon 0 -> derived freq = 1/4
-            ingroup_fa = tmp_path / "ingroup.fa"
-            ingroup_fa.write_text(
-                """>s1
+        Setting min_frequency to exactly 1/n can fail to
+        exclude singletons due to floating point. For n=4, derived_freq
+        computes to exactly 0.25 and 1/n = 0.25, so 0.25 < 0.25 is False
+        and the singleton passes through.
+        """
+        n = 4
+        # 4 sequences: 3 ancestral (ATG), 1 derived (CTG) at codon 0 -> derived freq = 1/4
+        ingroup_fa = tmp_path / "ingroup.fa"
+        ingroup_fa.write_text(
+            """>s1
     ATGATGATG
     >s2
     ATGATGATG
@@ -351,16 +350,16 @@ ATGATGATG
     >s4
     CTGATGATG
     """
-            )
-            outgroup_fa = tmp_path / "outgroup.fa"
-            outgroup_fa.write_text(
-                """>o1
+        )
+        outgroup_fa = tmp_path / "outgroup.fa"
+        outgroup_fa.write_text(
+            """>o1
     ATGATGATG
     """
-            )
+        )
 
-            min_freq = 1.0 / n  # 0.25
-            result = mk_test(ingroup_fa, outgroup_fa, min_frequency=min_freq)
-            total = result.pn + result.ps
+        min_freq = 1.0 / n  # 0.25
+        result = mk_test(ingroup_fa, outgroup_fa, min_frequency=min_freq)
+        total = result.pn + result.ps
 
-            assert total == 0, f"min_frequency=1/n ({min_freq}) must exclude singletons, got {total}"
+        assert total == 0, f"min_frequency=1/n ({min_freq}) must exclude singletons, got {total}"

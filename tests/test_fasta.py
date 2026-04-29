@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-import pytest
 
 from mkado.io.fasta import read_fasta, write_fasta
 
