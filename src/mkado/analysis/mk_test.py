@@ -67,12 +67,12 @@ class MKResult:
     """
 
     def __str__(self) -> str:
-        ni_str = f"{self.ni:.4f}" if self.ni is not None else "N/A"
-        alpha_str = f"{self.alpha:.4f}" if self.alpha is not None else "N/A"
-        dos_str = f"{self.dos:.4f}" if self.dos is not None else "N/A"
-        omega_str = f"{self.omega:.4f}" if self.omega is not None else "N/A"
-        ls_str = f"{self.ls:.2f}" if self.ls is not None else "N/A"
-        ln_str = f"{self.ln:.2f}" if self.ln is not None else "N/A"
+        ni_str = f"{self.ni:.4f}" if self.ni is not None else "NA"
+        alpha_str = f"{self.alpha:.4f}" if self.alpha is not None else "NA"
+        dos_str = f"{self.dos:.4f}" if self.dos is not None else "NA"
+        omega_str = f"{self.omega:.4f}" if self.omega is not None else "NA"
+        ls_str = f"{self.ls:.2f}" if self.ls is not None else "NA"
+        ln_str = f"{self.ln:.2f}" if self.ln is not None else "NA"
         return (
             f"MK Test Results:\n"
             f"  Divergence:    Dn={self.dn}, Ds={self.ds}\n"

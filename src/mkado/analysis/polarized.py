@@ -80,12 +80,12 @@ class PolarizedMKResult:
     """
 
     def __str__(self) -> str:
-        ni_str = f"{self.ni_ingroup:.4f}" if self.ni_ingroup is not None else "N/A"
-        alpha_str = f"{self.alpha_ingroup:.4f}" if self.alpha_ingroup is not None else "N/A"
-        dos_str = f"{self.dos_ingroup:.4f}" if self.dos_ingroup is not None else "N/A"
-        omega_str = f"{self.omega:.4f}" if self.omega is not None else "N/A"
-        ls_str = f"{self.ls:.2f}" if self.ls is not None else "N/A"
-        ln_str = f"{self.ln:.2f}" if self.ln is not None else "N/A"
+        ni_str = f"{self.ni_ingroup:.4f}" if self.ni_ingroup is not None else "NA"
+        alpha_str = f"{self.alpha_ingroup:.4f}" if self.alpha_ingroup is not None else "NA"
+        dos_str = f"{self.dos_ingroup:.4f}" if self.dos_ingroup is not None else "NA"
+        omega_str = f"{self.omega:.4f}" if self.omega is not None else "NA"
+        ls_str = f"{self.ls:.2f}" if self.ls is not None else "NA"
+        ln_str = f"{self.ln:.2f}" if self.ln is not None else "NA"
         return (
             f"Polarized MK Test Results:\n"
             f"  Ingroup Lineage:\n"
