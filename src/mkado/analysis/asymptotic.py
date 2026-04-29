@@ -1069,68 +1069,25 @@ def asymptotic_mk_test(
         a, b, c = y_data[-1], 0.0, 1.0
         alpha_asymp = y_data[-1]
 
-    # Bootstrap for confidence intervals
-    bootstrap_alphas = []
-    rng = np.random.default_rng(42)
-
-    for _ in range(bootstrap_replicates):
-        # Resample polymorphism data
-        if len(poly_data) == 0:
-            continue
-
-        indices = rng.integers(0, len(poly_data), size=len(poly_data))
-        boot_data = [poly_data[i] for i in indices]
-
-        # Bin resampled polymorphisms
-        boot_pn_per_bin = [0] * num_bins
-        boot_ps_per_bin = [0] * num_bins
-
-        for freq, poly_type in boot_data:
-            bin_idx = int(np.searchsorted(bin_edges[1:], freq, side="right"))
-            bin_idx = min(bin_idx, num_bins - 1)
-            if poly_type == "N":
-                boot_pn_per_bin[bin_idx] += 1
-            else:
-                boot_ps_per_bin[bin_idx] += 1
-
-        # Recalculate per-bin alpha values
-        boot_alpha_values = []
-        boot_centers = []
-
-        for i in range(num_bins):
-            pn_bin = boot_pn_per_bin[i]
-            ps_bin = boot_ps_per_bin[i]
-
-            if ds > 0 and dn > 0 and ps_bin > 0:
-                alpha_x = 1.0 - (ds / dn) * (pn_bin / ps_bin)
-                boot_alpha_values.append(alpha_x)
-                boot_centers.append(bin_centers[i])
-
-        if len(boot_centers) >= 3:
-            try:
-                boot_x = np.array(boot_centers)
-                boot_y = np.array(boot_alpha_values)
-                popt_boot, _ = optimize.curve_fit(
-                    _exponential_model,
-                    boot_x,
-                    boot_y,
-                    p0=[a, b, c],
-                    bounds=bounds,
-                    maxfev=5000,
-                )
-                # Evaluate at x=1: α(1) = a + b * exp(-c)
-                a_boot, b_boot, c_boot = popt_boot
-                bootstrap_alphas.append(a_boot + b_boot * np.exp(-c_boot))
-            except (RuntimeError, ValueError):
-                bootstrap_alphas.append(boot_alpha_values[-1] if boot_alpha_values else alpha_asymp)
-
-    # Calculate 95% CI
-    if bootstrap_alphas:
-        ci_low = float(np.percentile(bootstrap_alphas, 2.5))
-        ci_high = float(np.percentile(bootstrap_alphas, 97.5))
-    else:
-        ci_low = alpha_asymp
-        ci_high = alpha_asymp
+    # Shares the case-resampling bootstrap with the aggregated path.
+    # Replicates whose curve_fit fails are dropped (rather than imputed
+    # with the last bin's alpha as the legacy per-gene path did); CI
+    # degenerates to the point estimate when fewer than half succeed.
+    ci_low, ci_high = _compute_ci_bootstrap(
+        poly_data,
+        dn,
+        ds,
+        bin_edges,
+        bin_centers,
+        num_bins,
+        _exponential_model,
+        [float(a), float(b), float(c)],
+        bounds,
+        (0.0, 1.0),  # per-gene path has no frequency cutoff for fitting
+        alpha_asymp,
+        n_replicates=bootstrap_replicates,
+        seed=42,
+    )
 
     result = AsymptoticMKResult(
         frequency_bins=list(bin_centers),

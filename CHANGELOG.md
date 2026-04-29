@@ -64,6 +64,18 @@
   ~1000-polymorphism gene with 1000 replicates (1.4 s → 22 ms). CIs are
   byte-identical to the prior implementation under the same seed
   (closes #16).
+- Per-gene `asymptotic_mk_test` bootstrap loop replaced by a call to
+  the shared `_compute_ci_bootstrap()` helper (closes #17). Removes
+  ~60 lines of duplicate code, vectorizes the per-replicate binning,
+  and aligns failure-handling between per-gene and aggregated paths.
+
+### Changed
+- Per-gene `asymptotic_mk_test` CI failure handling: replicates whose
+  curve fit fails are now **dropped** rather than imputed with the last
+  bin's alpha (the prior behavior biased the CI when fits failed
+  systematically). When fewer than half of replicates succeed, the CI
+  degenerates to the point estimate. Matches the aggregated path's
+  behavior added in #10.
 
 ## [0.4.0] - 2026-03-17
 

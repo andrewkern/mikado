@@ -127,6 +127,26 @@ ATGATG
         # With only 4 ingroup sequences, might not have enough frequency data
         # but should still complete
 
+    def test_asymptotic_mk_test_ci_method_is_bootstrap(self, tmp_path: Path) -> None:
+        """Per-gene CI is reported as bootstrap (shares _compute_ci_bootstrap)."""
+        ingroup_fa = tmp_path / "ingroup.fa"
+        ingroup_fa.write_text(""">seq1
+ATGATGATGATGATGATG
+>seq2
+ATGCTGATGATGATGATG
+>seq3
+ATGATGATGCTGATGATG
+""")
+        outgroup_fa = tmp_path / "outgroup.fa"
+        outgroup_fa.write_text(""">out1
+ATGGTGATGGTGATGGTG
+""")
+        result = asymptotic_mk_test(ingroup_fa, outgroup_fa, num_bins=5)
+        assert result.ci_method == "bootstrap"
+        # CI should always be a valid interval (low <= high), even when it
+        # degenerates to the point estimate on small fixtures.
+        assert result.ci_low <= result.ci_high
+
 
 class TestPolymorphismData:
     """Tests for PolymorphismData dataclass."""
