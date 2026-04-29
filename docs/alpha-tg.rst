@@ -62,6 +62,8 @@ The output includes:
 - **Ln, Ls**: Nei-Gojobori non-synonymous and synonymous site totals
 - **omega**: dN/dS ratio ``(Dn/Ds) * (Ls/Ln)``
 - **omega_a, omega_na**: Adaptive and non-adaptive substitution rates
+  (`Gossmann, Keightley & Eyre-Walker 2012`_; applied to MK counts by
+  `Coronado-Zamora et al. 2019`_)
 - **omega_CI_low/high, omega_a_CI_low/high, omega_na_CI_low/high**:
   95% bootstrap CIs. Because the gene-resampling bootstrap varies Dn, Ds,
   Ln, and Ls per replicate, omega itself has a bootstrap distribution here
@@ -140,5 +142,11 @@ Reference
 ---------
 
 .. _Stoletzki & Eyre-Walker (2011): https://doi.org/10.1093/molbev/msq249
+.. _Gossmann, Keightley & Eyre-Walker 2012: https://doi.org/10.1093/gbe/evs027
+.. _Coronado-Zamora et al. 2019: https://doi.org/10.1093/gbe/evz046
 
 Stoletzki N, Eyre-Walker A (2011) Estimation of the Neutrality Index. *Molecular Biology and Evolution* 28(1):63-70. https://doi.org/10.1093/molbev/msq249
+
+Gossmann TI, Keightley PD, Eyre-Walker A (2012) The effect of variation in the effective population size on the rate of adaptive molecular evolution in eukaryotes. *Genome Biology and Evolution* 4(5):658-667. https://doi.org/10.1093/gbe/evs027
+
+Coronado-Zamora M, Salvador-Martínez I, Castellano D, Barbadilla A, Salazar-Ciudad I (2019) Adaptation and conservation throughout the *Drosophila melanogaster* life-cycle. *Genome Biology and Evolution* 11(5):1463-1482. https://doi.org/10.1093/gbe/evz046

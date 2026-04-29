@@ -123,9 +123,11 @@ The imputed test reports:
 - **cutoff**: The DAF cutoff used
 - **Ln, Ls**: Nei-Gojobori non-synonymous and synonymous site totals
 - **omega, omega_a, omega_na**: dN/dS and the adaptive/non-adaptive
-  decomposition (``omega_a = alpha * omega``). Reported as point
-  estimates only — the imputed test does not currently bootstrap, so
-  no CIs are produced. See :doc:`omega` for the decomposition formula.
+  decomposition (``omega_a = alpha * omega``) following
+  `Gossmann, Keightley & Eyre-Walker 2012`_, applied to MK counts by
+  `Coronado-Zamora et al. 2019`_. Reported as point estimates only — the
+  imputed test does not currently bootstrap, so no CIs are produced.
+  See :doc:`omega` for the decomposition formula.
 
 Example output (pretty format):
 
@@ -210,5 +212,11 @@ Reference
 ---------
 
 .. _Murga-Moreno et al. (2022): https://doi.org/10.1093/g3journal/jkac206
+.. _Gossmann, Keightley & Eyre-Walker 2012: https://doi.org/10.1093/gbe/evs027
+.. _Coronado-Zamora et al. 2019: https://doi.org/10.1093/gbe/evz046
 
 Murga-Moreno J, Coronado-Zamora M, Casillas S, Barbadilla A (2022) impMKT: the imputed McDonald and Kreitman test, a straightforward correction that significantly increases the evidence of positive selection of the McDonald and Kreitman test at the gene level. *G3: Genes, Genomes, Genetics* 12(10):jkac206. https://doi.org/10.1093/g3journal/jkac206
+
+Gossmann TI, Keightley PD, Eyre-Walker A (2012) The effect of variation in the effective population size on the rate of adaptive molecular evolution in eukaryotes. *Genome Biology and Evolution* 4(5):658-667. https://doi.org/10.1093/gbe/evs027
+
+Coronado-Zamora M, Salvador-Martínez I, Castellano D, Barbadilla A, Salazar-Ciudad I (2019) Adaptation and conservation throughout the *Drosophila melanogaster* life-cycle. *Genome Biology and Evolution* 11(5):1463-1482. https://doi.org/10.1093/gbe/evz046

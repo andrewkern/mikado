@@ -3,7 +3,11 @@ Omega Decomposition (ω, ω_a, ω_na)
 
 MKado reports the rate of nonsynonymous substitution per site (ω), and where
 appropriate, its decomposition into adaptive (ω_a) and non-adaptive (ω_na)
-components following `Gossmann, Keightley & Eyre-Walker (2012)`_.
+components. The decomposition was introduced by
+`Gossmann, Keightley & Eyre-Walker (2012)`_ and applied in the
+McDonald-Kreitman context — the same form MKado uses — by
+`Coronado-Zamora et al. (2019)`_ in their analysis of selection across the
+*Drosophila* life cycle.
 
 Background
 ----------
@@ -15,9 +19,15 @@ argue, comparing α between species or genomic regions is misleading when the
 underlying neutral substitution rate varies. The authors recommend reporting
 ω_a — the rate of adaptive substitution per site, scaled by the synonymous
 substitution rate — as a more appropriate cross-comparison statistic.
+`Coronado-Zamora et al. (2019)`_ later applied the same decomposition
+directly to MK-style fixed/polymorphic counts (the form MKado computes),
+showing how ω_a and ω_na partition the substitution rate into adaptive and
+slightly-deleterious components across functional categories.
 
 The decomposition
 -----------------
+
+Following `Coronado-Zamora et al. (2019)`_:
 
 .. math::
 

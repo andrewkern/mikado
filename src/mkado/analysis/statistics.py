@@ -163,9 +163,9 @@ def omega_decomposition(
 ) -> tuple[float | None, float | None, float | None]:
     """Compute omega and its adaptive/non-adaptive decomposition.
 
-    Following Gossmann, Keightley & Eyre-Walker (2012, *Genome Biol Evol*
-    4(5):658-667), the nonsynonymous substitution rate decomposes into an
-    adaptive component ``omega_a`` and a non-adaptive component ``omega_na``::
+    Decomposition introduced by Gossmann, Keightley & Eyre-Walker (2012,
+    *Genome Biol Evol* 4(5):658-667) and applied to MK-style counts by
+    Coronado-Zamora et al. (2019, *Genome Biol Evol* 11(5):1463-1482)::
 
         omega    = (Dn / Ds) * (Ls / Ln)   (= dN/dS using N-G site counts)
         omega_a  = alpha * omega
