@@ -163,6 +163,10 @@ Additional Options
    # Bootstrap replicates for confidence intervals (default: 100)
    mkado vcf ... --asymptotic --bootstrap 500
 
+   # Use case-resampling bootstrap CI instead of the parametric MC default
+   # (meaningful for --asymptotic --aggregate; see :doc:`asymptotic`)
+   mkado vcf ... --asymptotic --ci-method bootstrap
+
    # Frequency cutoffs for asymptotic curve fitting (default: 0.1,0.9)
    mkado vcf ... --asymptotic --freq-cutoffs 0.15,0.85
 

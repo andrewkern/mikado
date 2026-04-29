@@ -139,6 +139,9 @@ The output includes:
 
 - **Alpha asymptotic**: Extrapolated alpha value at derived frequency = 1
 - **95% CI**: Confidence interval for alpha asymptotic
+- **ci_method**: ``"monte-carlo"`` (default — parametric MVN sampling from the
+  fit covariance) or ``"bootstrap"`` (case-resampling). Switch with
+  ``--ci-method bootstrap``. See :doc:`asymptotic` for the trade-offs.
 - **Model type**: Whether exponential or linear model was selected
 - **Per-bin alpha values**: Alpha estimates at each frequency class
 - **omega, omega_a, omega_na**: dN/dS and its adaptive / non-adaptive

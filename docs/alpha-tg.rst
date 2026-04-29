@@ -69,6 +69,9 @@ The output includes:
   Ln, and Ls per replicate, omega itself has a bootstrap distribution here
   (unlike in the asymptotic test where Ln/Ls are constants). See
   :doc:`omega` for the rationale.
+- **ci_method**: always ``"bootstrap"`` for α_TG. The weighted estimator
+  has no parametric Monte Carlo analog, so the global ``--ci-method``
+  flag has no effect when ``--alpha-tg`` is set.
 
 Example output (TSV format, abbreviated):
 

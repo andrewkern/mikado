@@ -16,6 +16,7 @@ Features
 - **Imputed MK test**: Corrects for slightly deleterious mutations by imputation (`Murga-Moreno et al. 2022`_)
 - **Tarone-Greenland α_TG**: Weighted multi-gene estimator (`Stoletzki & Eyre-Walker 2011`_)
 - **Omega decomposition**: dN/dS plus adaptive (ω_a) / non-adaptive (ω_na) rates with 95% CIs (`Gossmann, Keightley & Eyre-Walker 2012`_)
+- **Bootstrap CI option**: ``--ci-method bootstrap`` runs a case-resampling bootstrap as an alternative to the parametric Monte Carlo CI; bootstrap CI on imputed alpha when ``--bootstrap > 0``
 - **Alternate genetic codes**: Support for 24 NCBI genetic code tables (mitochondrial, plastid, etc.)
 - **VCF input**: Go directly from VCF + reference + GFF3 to MK test results
 - **Batch processing**: Process multiple genes with parallel execution
