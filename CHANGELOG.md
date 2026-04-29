@@ -55,6 +55,16 @@
   alongside the existing `_compute_ci_monte_carlo()`.
 - `_bootstrap_imputed_alpha()` helper in `mkado.analysis.imputed`.
 
+### Performance
+- `_bootstrap_imputed_alpha()` is now vectorized: pre-extracts numpy
+  arrays of frequencies and N/S type once, then per replicate uses
+  `rng.integers` indexing and `np.count_nonzero` instead of calling
+  `_compute_imputed` (which does four Python-level `sum()` passes per
+  call). ~63× speedup on the imputed-bootstrap path measured on a
+  ~1000-polymorphism gene with 1000 replicates (1.4 s → 22 ms). CIs are
+  byte-identical to the prior implementation under the same seed
+  (closes #16).
+
 ## [0.4.0] - 2026-03-17
 
 ### Added

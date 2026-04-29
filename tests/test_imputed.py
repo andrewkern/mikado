@@ -515,3 +515,34 @@ class TestImputedBootstrapCi:
         assert result.alpha_ci_low is not None
         assert result.alpha_ci_high is not None
         assert result.ci_method == "bootstrap"
+
+
+class TestImputedBootstrapRegression:
+    """Lock in the bootstrap CI numerics so vectorization stays byte-identical.
+
+    Issue #16 vectorizes the bootstrap to bypass per-replicate _compute_imputed
+    calls. The same seed must yield the same CI to all printable digits.
+    """
+
+    def test_single_gene_locked_ci(self) -> None:
+        gene = _imputed_fixture()
+        result = imputed_mk_test(gene, cutoff=0.15, n_bootstrap=500, seed=42)
+        # Recorded with the pre-vectorization implementation
+        assert result.alpha_ci_low == pytest.approx(0.19999999999999996, abs=1e-12)
+        assert result.alpha_ci_high == pytest.approx(0.9466666666666667, abs=1e-12)
+
+    def test_multi_gene_locked_ci(self) -> None:
+        gene1 = _imputed_fixture()
+        gene2 = PolymorphismData(
+            polymorphisms=[(0.05, "N")] * 3
+            + [(0.5, "N")] * 2
+            + [(0.4, "S")] * 5
+            + [(0.5, "S")] * 3,
+            dn=4,
+            ds=3,
+            ln=200.0,
+            ls=70.0,
+        )
+        result = imputed_mk_test_multi([gene1, gene2], cutoff=0.15, n_bootstrap=500, seed=42)
+        assert result.alpha_ci_low == pytest.approx(0.4046481092436975, abs=1e-12)
+        assert result.alpha_ci_high == pytest.approx(0.9233928571428571, abs=1e-12)
