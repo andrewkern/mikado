@@ -2,7 +2,7 @@
 
 import pytest
 
-from mkado.core.codons import DEFAULT_CODE, GeneticCode
+from mkado.core.codons import GeneticCode
 
 
 class TestGeneticCode:
@@ -201,3 +201,40 @@ class TestResolveCodeTable:
 
         with pytest.raises(ValueError, match="Unknown genetic code"):
             resolve_code_table("99")
+
+
+class TestGeneticCodeMemory:
+    """Regression tests for #14: GeneticCode instances must not be pinned by their cache.
+
+    The prior `@lru_cache(maxsize=4096)` on the bound `translate` method held a
+    strong reference to ``self`` through the cache key, preventing the instance
+    from being garbage-collected until the cached method itself was dropped.
+    """
+
+    def test_instance_collected_after_translate_use(self) -> None:
+        import gc
+        import weakref
+
+        code = GeneticCode()
+        for codon in ("ATG", "TTT", "TGA", "GCC"):
+            code.translate(codon)
+            code.count_synonymous_sites(codon)
+        ref = weakref.ref(code)
+        del code
+        gc.collect()
+        assert ref() is None, "GeneticCode instance not collected after del + gc.collect()"
+
+    def test_many_instances_collected(self) -> None:
+        import gc
+        import weakref
+
+        refs = []
+        for _ in range(50):
+            c = GeneticCode()
+            c.translate("ATG")
+            c.count_synonymous_sites("TTT")
+            refs.append(weakref.ref(c))
+            del c
+        gc.collect()
+        live = sum(1 for r in refs if r() is not None)
+        assert live == 0, f"{live}/{len(refs)} GeneticCode instances still alive"

@@ -69,6 +69,20 @@
   ~60 lines of duplicate code, vectorizes the per-replicate binning,
   and aligns failure-handling between per-gene and aggregated paths.
 
+### Fixed
+- `GeneticCode.translate` no longer uses `@lru_cache` on a bound method
+  (closes #14). The decorator's cache key included `self`, pinning every
+  `GeneticCode` instance for the lifetime of the class object — a real
+  leak in tests, notebooks, and any process that constructs many
+  ephemeral instances. The translation table is now eagerly precomputed
+  in `__init__` as a per-instance dict (~640 bytes), mirroring the
+  proven `_compute_codon_paths` pattern. Same fix applied to
+  `count_synonymous_sites`, retiring its lazy-population dict for an
+  eager precompute over the bounded 64-codon keyspace. Behavior is
+  byte-identical for callers; a new regression test in
+  `tests/test_codons.py::TestGeneticCodeMemory` uses `weakref` to verify
+  instances are garbage-collected after `del` + `gc.collect()`.
+
 ### Changed
 - Per-gene `asymptotic_mk_test` CI failure handling: replicates whose
   curve fit fails are now **dropped** rather than imputed with the last

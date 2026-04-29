@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from functools import lru_cache
 from typing import TYPE_CHECKING
 
 from mkado.data.genetic_codes import (
@@ -49,9 +48,16 @@ class GeneticCode:
         else:
             self._paths = _compute_codon_paths(self.code)
 
-        self._syn_sites_cache: dict[str, float] = {}
+        # Eager per-instance lookup tables over the 64 standard codons. Keyspace
+        # is fixed by self.code; non-standard inputs (N, -, lowercase, "XYZ", ...)
+        # fall through the .get() default at lookup time. Avoiding @lru_cache on
+        # bound methods is deliberate — that pattern keeps `self` alive via the
+        # cache key, leaking instances (regression test in tests/test_codons.py).
+        self._translate_cache: dict[str, str] = dict(self.code)
+        self._syn_sites_cache: dict[str, float] = {
+            codon: self._compute_syn_sites(codon) for codon in self.code
+        }
 
-    @lru_cache(maxsize=4096)
     def translate(self, codon: str) -> str:
         """Translate a codon to its amino acid.
 
@@ -61,8 +67,35 @@ class GeneticCode:
         Returns:
             Single-letter amino acid code, or 'X' for unknown
         """
-        codon = codon.upper()
-        return self.code.get(codon, "X")
+        return self._translate_cache.get(codon.upper(), "X")
+
+    def _compute_syn_sites(self, codon: str) -> float:
+        """Nei-Gojobori synonymous-site count for one codon.
+
+        Used during ``__init__`` to populate ``_syn_sites_cache`` and not
+        called afterwards. Reads ``_translate_cache``, which must already be
+        built when this is invoked.
+        """
+        aa = self._translate_cache.get(codon, "X")
+        if aa == "*" or aa == "X":
+            return 0.0
+
+        syn_sites = 0.0
+        for pos in range(3):
+            syn_count = 0
+            total_count = 0
+            for nt in ("A", "C", "G", "T"):
+                if nt == codon[pos]:
+                    continue
+                new_codon = codon[:pos] + nt + codon[pos + 1 :]
+                new_aa = self._translate_cache.get(new_codon, "X")
+                if new_aa != "*":
+                    total_count += 1
+                    if new_aa == aa:
+                        syn_count += 1
+            if total_count > 0:
+                syn_sites += syn_count / total_count
+        return syn_sites
 
     def translate_sequence(self, sequence: str, reading_frame: int = 1) -> str:
         """Translate a nucleotide sequence to amino acids.
@@ -110,39 +143,9 @@ class GeneticCode:
             Number of synonymous sites (0-3)
         """
         codon = codon.upper()
-        cached = self._syn_sites_cache.get(codon)
-        if cached is not None:
-            return cached
-
         if "N" in codon or "-" in codon:
-            self._syn_sites_cache[codon] = 0.0
             return 0.0
-
-        aa = self.translate(codon)
-        if aa == "*" or aa == "X":
-            self._syn_sites_cache[codon] = 0.0
-            return 0.0
-
-        syn_sites = 0.0
-        nucleotides = ["A", "C", "G", "T"]
-
-        for pos in range(3):
-            syn_count = 0
-            total_count = 0
-            for nt in nucleotides:
-                if nt == codon[pos]:
-                    continue
-                new_codon = codon[:pos] + nt + codon[pos + 1 :]
-                new_aa = self.translate(new_codon)
-                if new_aa != "*":
-                    total_count += 1
-                    if new_aa == aa:
-                        syn_count += 1
-            if total_count > 0:
-                syn_sites += syn_count / total_count
-
-        self._syn_sites_cache[codon] = syn_sites
-        return syn_sites
+        return self._syn_sites_cache.get(codon, 0.0)
 
     def is_synonymous_change(self, codon1: str, codon2: str) -> bool | None:
         """Check if a single-nucleotide change is synonymous.
