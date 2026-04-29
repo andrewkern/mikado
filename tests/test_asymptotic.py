@@ -636,3 +636,116 @@ class TestBootstrapCiCoverage:
             f"Bootstrap CI coverage {coverage:.2f} outside expected range; "
             f"true α(1)={true_alpha_at_1:.4f}"
         )
+
+
+class TestSfsMode:
+    """Tests for the --sfs-mode flag (Uricchio et al. 2019 cumulative SFS).
+
+    The cumulative ("above x") form replaces per-bin counts with an inclusive
+    suffix sum: bin i = count of polymorphisms with derived frequency
+    >= bin_edges[i]. The asymptote at x→1 is the same as the at-x form, but
+    the curve is smoother and more sample-size-stable.
+    """
+
+    def test_aggregate_default_sfs_mode_is_at(self) -> None:
+        """No sfs_mode argument keeps the existing per-bin (at-x) counts."""
+        gene_data = [
+            PolymorphismData(
+                polymorphisms=[(0.2, "N"), (0.5, "S"), (0.8, "N")],
+                dn=5,
+                ds=10,
+            )
+        ]
+        agg_default = aggregate_polymorphism_data(gene_data, num_bins=10)
+        agg_at = aggregate_polymorphism_data(gene_data, num_bins=10, sfs_mode="at")
+        np.testing.assert_array_equal(agg_default.pn_counts, agg_at.pn_counts)
+        np.testing.assert_array_equal(agg_default.ps_counts, agg_at.ps_counts)
+
+    def test_aggregate_sfs_mode_above_is_cumulative_suffix_sum(self) -> None:
+        """sfs_mode='above' produces an inclusive right-tail cumulative SFS.
+
+        With 10 bins of width 0.1, polymorphisms at frequencies 0.15, 0.45, 0.85
+        fall in bins 1, 4, 8 respectively. After cumulative transform, bin i
+        holds the count of polymorphisms in bins [i, end].
+        """
+        gene_data = [
+            PolymorphismData(
+                polymorphisms=[(0.15, "N"), (0.45, "N"), (0.85, "N")],
+                dn=5,
+                ds=10,
+            )
+        ]
+        agg = aggregate_polymorphism_data(gene_data, num_bins=10, sfs_mode="above")
+        # Bin 0 holds total count (>= 0.0); bins ramp down monotonically.
+        expected_pn = np.array([3, 3, 2, 2, 2, 1, 1, 1, 1, 0], dtype=float)
+        np.testing.assert_array_equal(agg.pn_counts, expected_pn)
+        # Monotonically non-increasing.
+        diffs = np.diff(agg.pn_counts)
+        assert np.all(diffs <= 0)
+
+    def test_aggregate_sfs_mode_invalid_raises(self) -> None:
+        """Any value other than 'at' or 'above' is rejected at the API."""
+        gene_data = [PolymorphismData(polymorphisms=[(0.2, "N")], dn=1, ds=1)]
+        with pytest.raises(ValueError):
+            aggregate_polymorphism_data(gene_data, num_bins=10, sfs_mode="bogus")
+
+    def test_asymptotic_aggregated_both_modes_converge_to_same_asymptote(self) -> None:
+        """The headline acceptance criterion: shared asymptote across modes.
+
+        The two SFS conventions are mathematically guaranteed to share α(1).
+        On a clean simulated dataset the fitted asymptotes must agree within
+        a generous tolerance, and each mode's own CI must bracket its own
+        point estimate. We do not require the narrower "above" CI to contain
+        the noisier "at" point estimate — the cumulative SFS legitimately
+        produces tighter CIs by averaging out per-bin noise.
+        """
+        gene_data = _make_aggregated_gene_data(num_genes=30, seed=7)
+        r_at = asymptotic_mk_test_aggregated(gene_data, num_bins=10, sfs_mode="at", seed=42)
+        r_above = asymptotic_mk_test_aggregated(gene_data, num_bins=10, sfs_mode="above", seed=42)
+        assert abs(r_at.alpha_asymptotic - r_above.alpha_asymptotic) < 0.1
+        assert r_at.ci_low <= r_at.alpha_asymptotic <= r_at.ci_high
+        assert r_above.ci_low <= r_above.alpha_asymptotic <= r_above.ci_high
+
+    def test_asymptotic_aggregated_records_sfs_mode(self) -> None:
+        """The result dataclass records which mode was used."""
+        gene_data = _make_aggregated_gene_data(num_genes=10, seed=8)
+        r_default = asymptotic_mk_test_aggregated(gene_data, num_bins=10)
+        r_above = asymptotic_mk_test_aggregated(gene_data, num_bins=10, sfs_mode="above")
+        assert r_default.sfs_mode == "at"
+        assert r_above.sfs_mode == "above"
+        assert r_default.to_dict()["sfs_mode"] == "at"
+        assert r_above.to_dict()["sfs_mode"] == "above"
+
+    def test_asymptotic_mk_test_single_gene_threads_sfs_mode(self, tmp_path: Path) -> None:
+        """The single-gene entry point also accepts and records sfs_mode."""
+        ingroup = tmp_path / "in.fa"
+        ingroup.write_text(
+            ">seq1\nATGTTTGCAGCAGCAGCAGCAGCA\n"
+            ">seq2\nATGTTCGCAGCAGCAGCAGCAGCA\n"
+            ">seq3\nATGTTTGCAGCAGCAGCAGCAGCA\n"
+            ">seq4\nATGTTAGCAGCAGCAGCAGCAGCA\n"
+            ">seq5\nATGTTTGCAGCAGCAGCAGCAGCA\n"
+        )
+        outgroup = tmp_path / "out.fa"
+        outgroup.write_text(">out\nATGTTGGCAGCAGCAGCAGCAGCA\n")
+
+        result = asymptotic_mk_test(
+            ingroup=ingroup, outgroup=outgroup, num_bins=5, sfs_mode="above"
+        )
+        assert result.sfs_mode == "above"
+
+    def test_bootstrap_ci_respects_sfs_mode(self) -> None:
+        """The bootstrap CI rebins resampled data using the same mode as the fit."""
+        gene_data = _make_aggregated_gene_data(num_genes=30, seed=9)
+        result = asymptotic_mk_test_aggregated(
+            gene_data,
+            num_bins=10,
+            sfs_mode="above",
+            ci_method="bootstrap",
+            ci_replicates=200,
+            seed=42,
+        )
+        assert result.sfs_mode == "above"
+        assert result.ci_method == "bootstrap"
+        assert result.ci_low <= result.ci_high
+        assert result.ci_low <= result.alpha_asymptotic <= result.ci_high

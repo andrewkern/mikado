@@ -76,6 +76,10 @@ class BatchTask:
     """CI method for aggregated asymptotic MK ("monte-carlo" or "bootstrap").
     Ignored for non-aggregated modes."""
 
+    sfs_mode: str = "at"
+    """Asymptotic-MK SFS construction: "at" (per-bin) or "above" (cumulative).
+    Ignored for non-asymptotic modes."""
+
 
 @dataclass
 class WorkerResult:
@@ -173,6 +177,7 @@ def process_gene(task: BatchTask) -> WorkerResult:
                     bootstrap_replicates=task.bootstrap,
                     pool_polymorphisms=task.pool_polymorphisms,
                     genetic_code=genetic_code,
+                    sfs_mode=task.sfs_mode,
                 )
                 return WorkerResult(gene_id=gene_id, result=result)
 
@@ -266,6 +271,7 @@ def process_gene(task: BatchTask) -> WorkerResult:
                     bootstrap_replicates=task.bootstrap,
                     pool_polymorphisms=task.pool_polymorphisms,
                     genetic_code=genetic_code,
+                    sfs_mode=task.sfs_mode,
                 )
                 return WorkerResult(gene_id=gene_id, result=result)
 

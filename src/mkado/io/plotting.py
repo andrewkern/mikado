@@ -161,7 +161,6 @@ def create_volcano_plot(
     ax.set_xlabel("-log$_{10}$(NI)", fontsize=12)
     ax.set_ylabel("-log$_{10}$(p-value)", fontsize=12)
 
-
     # Add legend
     ax.legend(loc="upper right", framealpha=0.9)
 
@@ -213,9 +212,7 @@ def create_asymptotic_plot(
         raise ValueError("No frequency bin data available for plotting")
 
     if len(x_data) != len(y_data):
-        raise ValueError(
-            f"Mismatched data: {len(x_data)} x values vs {len(y_data)} alpha values"
-        )
+        raise ValueError(f"Mismatched data: {len(x_data)} x values vs {len(y_data)} alpha values")
 
     # Create figure
     fig, ax = plt.subplots(figsize=(10, 8))
@@ -272,10 +269,14 @@ def create_asymptotic_plot(
         label=fit_label,
     )
 
-    # Labels and title
+    # Labels and title — Uricchio et al. 2019 cumulative SFS uses α(>x) instead.
     ax.set_xlabel("Derived allele frequency x", fontsize=12)
-    ax.set_ylabel("MK α(x)", fontsize=12)
-    ax.set_title("Asymptotic MK Test: α(x) vs Frequency", fontsize=14, fontweight="bold")
+    if result.sfs_mode == "above":
+        ax.set_ylabel("MK α(>x)", fontsize=12)
+        ax.set_title("Asymptotic MK Test: α(>x) vs Frequency", fontsize=14, fontweight="bold")
+    else:
+        ax.set_ylabel("MK α(x)", fontsize=12)
+        ax.set_title("Asymptotic MK Test: α(x) vs Frequency", fontsize=14, fontweight="bold")
 
     # Set axis limits
     ax.set_xlim(0, 1)

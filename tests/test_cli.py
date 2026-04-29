@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-import pytest
 from typer.testing import CliRunner
 
 from mkado.cli import app
@@ -28,10 +27,13 @@ ATGGTGATG
             [
                 "test",
                 str(fasta),
-                "-i", "speciesA",
-                "-o", "speciesB",
+                "-i",
+                "speciesA",
+                "-o",
+                "speciesB",
                 "--asymptotic",
-                "--min-freq", "0.1",
+                "--min-freq",
+                "0.1",
             ],
         )
 
@@ -58,10 +60,13 @@ ATGGTGATGATGATGATG
             [
                 "batch",
                 str(alignment_dir),
-                "-i", "speciesA",
-                "-o", "speciesB",
+                "-i",
+                "speciesA",
+                "-o",
+                "speciesB",
                 "--alpha-tg",
-                "--min-freq", "0.1",
+                "--min-freq",
+                "0.1",
             ],
         )
 
@@ -84,8 +89,10 @@ ATGGTGATG
             [
                 "batch",
                 str(alignment_dir),
-                "-i", "speciesA",
-                "-o", "speciesB",
+                "-i",
+                "speciesA",
+                "-o",
+                "speciesB",
                 "--alpha-tg",
                 "--asymptotic",
             ],
@@ -110,10 +117,13 @@ ATGATGATG
             [
                 "test",
                 str(fasta),
-                "-i", "speciesA",
-                "-o", "speciesB",
+                "-i",
+                "speciesA",
+                "-o",
+                "speciesB",
                 "--asymptotic",
-                "--polarize-match", "speciesC",
+                "--polarize-match",
+                "speciesC",
             ],
         )
 
@@ -136,8 +146,10 @@ ATGGTGATGATGATGATG
             [
                 "test",
                 str(fasta),
-                "-i", "speciesA",
-                "-o", "speciesB",
+                "-i",
+                "speciesA",
+                "-o",
+                "speciesB",
                 "--asymptotic",
             ],
         )
@@ -161,9 +173,12 @@ ATGGTGATG
             [
                 "test",
                 str(fasta),
-                "-i", "speciesA",
-                "-o", "speciesB",
-                "--min-freq", "0.1",
+                "-i",
+                "speciesA",
+                "-o",
+                "speciesB",
+                "--min-freq",
+                "0.1",
             ],
         )
 
@@ -192,10 +207,13 @@ ATGATGATG
             [
                 "batch",
                 str(alignment_dir),
-                "-i", "speciesA",
-                "-o", "speciesB",
+                "-i",
+                "speciesA",
+                "-o",
+                "speciesB",
                 "--asymptotic",
-                "--polarize-match", "speciesC",
+                "--polarize-match",
+                "speciesC",
             ],
         )
 
@@ -220,10 +238,13 @@ ATGGTGATG
             [
                 "test",
                 str(fasta),
-                "-i", "speciesA",
-                "-o", "speciesB",
+                "-i",
+                "speciesA",
+                "-o",
+                "speciesB",
                 "--no-singletons",
-                "--min-freq", "0.1",
+                "--min-freq",
+                "0.1",
             ],
         )
 
@@ -244,8 +265,10 @@ ATGGTGATG
             [
                 "test",
                 str(fasta),
-                "-i", "speciesA",
-                "-o", "speciesB",
+                "-i",
+                "speciesA",
+                "-o",
+                "speciesB",
                 "--no-singletons",
                 "--asymptotic",
             ],
@@ -270,8 +293,10 @@ ATGGTGATG
             [
                 "test",
                 str(fasta),
-                "-i", "speciesA",
-                "-o", "speciesB",
+                "-i",
+                "speciesA",
+                "-o",
+                "speciesB",
                 "--no-singletons",
             ],
         )
@@ -299,8 +324,10 @@ ATGGTGATGATGATGATG
             [
                 "batch",
                 str(alignment_dir),
-                "-i", "speciesA",
-                "-o", "speciesB",
+                "-i",
+                "speciesA",
+                "-o",
+                "speciesB",
                 "--no-singletons",
                 "--alpha-tg",
             ],
@@ -337,9 +364,12 @@ ATGGTGATGATGATGATG
             [
                 "test",
                 str(fasta),
-                "-i", "speciesA",
-                "-o", "speciesB",
-                "--code-table", "vertebrate-mito",
+                "-i",
+                "speciesA",
+                "-o",
+                "speciesB",
+                "--code-table",
+                "vertebrate-mito",
             ],
         )
         assert result.exit_code == 0
@@ -360,9 +390,12 @@ ATGGTGATGATGATGATG
             [
                 "test",
                 str(fasta),
-                "-i", "speciesA",
-                "-o", "speciesB",
-                "--code-table", "2",
+                "-i",
+                "speciesA",
+                "-o",
+                "speciesB",
+                "--code-table",
+                "2",
             ],
         )
         assert result.exit_code == 0
@@ -381,9 +414,12 @@ ATGGTGATG
             [
                 "test",
                 str(fasta),
-                "-i", "speciesA",
-                "-o", "speciesB",
-                "--code-table", "not-a-real-code",
+                "-i",
+                "speciesA",
+                "-o",
+                "speciesB",
+                "--code-table",
+                "not-a-real-code",
             ],
         )
         assert result.exit_code == 1
@@ -403,30 +439,37 @@ ATGGTGATG
             [
                 "test",
                 str(fasta),
-                "-i", "speciesA",
-                "-o", "speciesB",
-                "--code-table", "99",
+                "-i",
+                "speciesA",
+                "-o",
+                "speciesB",
+                "--code-table",
+                "99",
             ],
         )
         assert result.exit_code == 1
         assert "Unknown genetic code" in result.output
 
 
+def _make_asymptotic_alignment_dir(tmp_path: Path) -> Path:
+    """Build a tiny multi-gene alignment dir suitable for batch -a."""
+    alignment_dir = tmp_path / "alignments"
+    alignment_dir.mkdir()
+    # Three genes; each has a couple of polymorphisms across frequency
+    for i, codons in enumerate(["ATGTTT", "ATGTTC", "ATGTTA"]):
+        fa = alignment_dir / f"gene{i}.fa"
+        fa.write_text(
+            f">speciesA_1\n{codons}\n>speciesA_2\nATG{codons[3:]}\n"
+            f">speciesA_3\n{codons}\n>speciesB_1\nATGTTG\n"
+        )
+    return alignment_dir
+
+
 class TestCiMethodOption:
     """Tests for --ci-method flag."""
 
     def _make_alignment_dir(self, tmp_path: Path) -> Path:
-        """Build a tiny multi-gene alignment dir suitable for batch -a."""
-        alignment_dir = tmp_path / "alignments"
-        alignment_dir.mkdir()
-        # Three genes; each has a couple of polymorphisms across frequency
-        for i, codons in enumerate(["ATGTTT", "ATGTTC", "ATGTTA"]):
-            fa = alignment_dir / f"gene{i}.fa"
-            fa.write_text(
-                f">speciesA_1\n{codons}\n>speciesA_2\nATG{codons[3:]}\n"
-                f">speciesA_3\n{codons}\n>speciesB_1\nATGTTG\n"
-            )
-        return alignment_dir
+        return _make_asymptotic_alignment_dir(tmp_path)
 
     def test_invalid_ci_method_rejected_in_test(self, tmp_path: Path) -> None:
         fasta = tmp_path / "test.fa"
@@ -442,8 +485,16 @@ class TestCiMethodOption:
         alignment_dir = self._make_alignment_dir(tmp_path)
         result = runner.invoke(
             app,
-            ["batch", str(alignment_dir), "-i", "speciesA", "-o", "speciesB",
-             "--ci-method", "bogus"],
+            [
+                "batch",
+                str(alignment_dir),
+                "-i",
+                "speciesA",
+                "-o",
+                "speciesB",
+                "--ci-method",
+                "bogus",
+            ],
         )
         assert result.exit_code == 1
         assert "Invalid --ci-method" in result.output
@@ -453,8 +504,17 @@ class TestCiMethodOption:
         alignment_dir = self._make_alignment_dir(tmp_path)
         result = runner.invoke(
             app,
-            ["batch", str(alignment_dir), "-i", "speciesA", "-o", "speciesB",
-             "--asymptotic", "--format", "tsv"],
+            [
+                "batch",
+                str(alignment_dir),
+                "-i",
+                "speciesA",
+                "-o",
+                "speciesB",
+                "--asymptotic",
+                "--format",
+                "tsv",
+            ],
         )
         assert result.exit_code == 0
         assert "ci_method" in result.output
@@ -464,10 +524,141 @@ class TestCiMethodOption:
         alignment_dir = self._make_alignment_dir(tmp_path)
         result = runner.invoke(
             app,
-            ["batch", str(alignment_dir), "-i", "speciesA", "-o", "speciesB",
-             "--asymptotic", "--ci-method", "bootstrap", "--bootstrap", "20",
-             "--format", "tsv"],
+            [
+                "batch",
+                str(alignment_dir),
+                "-i",
+                "speciesA",
+                "-o",
+                "speciesB",
+                "--asymptotic",
+                "--ci-method",
+                "bootstrap",
+                "--bootstrap",
+                "20",
+                "--format",
+                "tsv",
+            ],
         )
         assert result.exit_code == 0
         assert "ci_method" in result.output
         assert "bootstrap" in result.output
+
+
+class TestSfsModeOption:
+    """Tests for the --sfs-mode flag (Uricchio et al. 2019 cumulative SFS)."""
+
+    def _make_alignment_dir(self, tmp_path: Path) -> Path:
+        return _make_asymptotic_alignment_dir(tmp_path)
+
+    def test_invalid_sfs_mode_rejected_in_test(self, tmp_path: Path) -> None:
+        fasta = tmp_path / "test.fa"
+        fasta.write_text(">speciesA_1\nATGATGATG\n>speciesB_1\nATGGTGATG\n")
+        result = runner.invoke(
+            app,
+            [
+                "test",
+                str(fasta),
+                "-i",
+                "speciesA",
+                "-o",
+                "speciesB",
+                "--asymptotic",
+                "--sfs-mode",
+                "bogus",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "Invalid --sfs-mode" in result.output
+
+    def test_invalid_sfs_mode_rejected_in_batch(self, tmp_path: Path) -> None:
+        alignment_dir = self._make_alignment_dir(tmp_path)
+        result = runner.invoke(
+            app,
+            [
+                "batch",
+                str(alignment_dir),
+                "-i",
+                "speciesA",
+                "-o",
+                "speciesB",
+                "--asymptotic",
+                "--sfs-mode",
+                "bogus",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "Invalid --sfs-mode" in result.output
+
+    def test_sfs_mode_default_is_at_in_tsv(self, tmp_path: Path) -> None:
+        """Default --sfs-mode produces sfs_mode=at in batch -a output."""
+        alignment_dir = self._make_alignment_dir(tmp_path)
+        result = runner.invoke(
+            app,
+            [
+                "batch",
+                str(alignment_dir),
+                "-i",
+                "speciesA",
+                "-o",
+                "speciesB",
+                "--asymptotic",
+                "--format",
+                "tsv",
+            ],
+        )
+        assert result.exit_code == 0
+        assert "sfs_mode" in result.output
+        assert "at" in result.output
+
+    def test_sfs_mode_above_appears_in_tsv(self, tmp_path: Path) -> None:
+        alignment_dir = self._make_alignment_dir(tmp_path)
+        result = runner.invoke(
+            app,
+            [
+                "batch",
+                str(alignment_dir),
+                "-i",
+                "speciesA",
+                "-o",
+                "speciesB",
+                "--asymptotic",
+                "--sfs-mode",
+                "above",
+                "--format",
+                "tsv",
+            ],
+        )
+        assert result.exit_code == 0
+        assert "sfs_mode" in result.output
+        assert "above" in result.output
+
+    def test_sfs_mode_above_in_test_command_succeeds(self, tmp_path: Path) -> None:
+        fasta = tmp_path / "test.fa"
+        fasta.write_text(
+            ">speciesA_1\nATGTTTGCAGCAGCAGCAGCAGCA\n"
+            ">speciesA_2\nATGTTCGCAGCAGCAGCAGCAGCA\n"
+            ">speciesA_3\nATGTTAGCAGCAGCAGCAGCAGCA\n"
+            ">speciesA_4\nATGTTTGCAGCAGCAGCAGCAGCA\n"
+            ">speciesA_5\nATGTTGGCAGCAGCAGCAGCAGCA\n"
+            ">speciesB_1\nATGCTGGCAGCAGCAGCAGCAGCA\n"
+        )
+        result = runner.invoke(
+            app,
+            [
+                "test",
+                str(fasta),
+                "-i",
+                "speciesA",
+                "-o",
+                "speciesB",
+                "--asymptotic",
+                "--sfs-mode",
+                "above",
+                "--format",
+                "tsv",
+            ],
+        )
+        assert result.exit_code == 0
+        assert "sfs_mode" in result.output
+        assert "above" in result.output

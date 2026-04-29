@@ -57,9 +57,9 @@ class AggregatedSFS:
 
     bin_edges: np.ndarray = field(default_factory=lambda: np.array([]))
     pn_counts: np.ndarray = field(default_factory=lambda: np.array([]))
-    """Pn per bin."""
+    """Pn per bin (semantics depend on ``sfs_mode``: per-bin or cumulative tail)."""
     ps_counts: np.ndarray = field(default_factory=lambda: np.array([]))
-    """Ps per bin."""
+    """Ps per bin (semantics depend on ``sfs_mode``: per-bin or cumulative tail)."""
     dn_total: int = 0
     ds_total: int = 0
     num_genes: int = 0
@@ -67,6 +67,12 @@ class AggregatedSFS:
     """Sum of per-gene Nei-Gojobori non-synonymous sites."""
     ls_total: float | None = None
     """Sum of per-gene Nei-Gojobori synonymous sites."""
+    pn_total: int = 0
+    """Total non-synonymous polymorphisms (raw count, mode-invariant)."""
+    ps_total: int = 0
+    """Total synonymous polymorphisms (raw count, mode-invariant)."""
+    sfs_mode: str = "at"
+    """SFS construction mode used to build ``pn_counts``/``ps_counts``."""
 
 
 @dataclass
@@ -128,6 +134,9 @@ class AsymptoticMKResult:
     """Method used to compute ``ci_low``/``ci_high``: ``"monte-carlo"`` samples
     parameters from the curve-fit covariance matrix; ``"bootstrap"`` resamples
     polymorphisms with replacement and refits per replicate."""
+    sfs_mode: str = "at"
+    """SFS construction mode: ``"at"`` (Messer & Petrov 2013, count per bin) or
+    ``"above"`` (Uricchio et al. 2019, inclusive right-tail cumulative count)."""
 
     # Dn, Ds, Ln, Ls are constants under the asymptotic Monte Carlo procedure,
     # so omega has no sampling distribution. The CIs on omega_a and omega_na
@@ -170,6 +179,7 @@ class AsymptoticMKResult:
             f"  Asymptotic α: {self.alpha_asymptotic:.4f} "
             f"(95% CI [{self.ci_method}]: {self.ci_low:.4f} - {self.ci_high:.4f})",
             f"  Divergence: Dn={self.dn}, Ds={self.ds}",
+            f"  SFS mode: {self.sfs_mode}",
         ]
         if self.pn_total > 0 or self.ps_total > 0:
             lines.append(f"  Polymorphism: Pn={self.pn_total}, Ps={self.ps_total}")
@@ -237,6 +247,7 @@ class AsymptoticMKResult:
         result["omega_na_ci_low"] = self.omega_na_ci_low
         result["omega_na_ci_high"] = self.omega_na_ci_high
         result["ci_method"] = self.ci_method
+        result["sfs_mode"] = self.sfs_mode
         return result
 
 
@@ -255,6 +266,27 @@ def _attach_omega(
     result.omega_a = omega_a
     result.omega_na = omega_na
     return result
+
+
+_SFS_MODES: tuple[str, ...] = ("at", "above")
+
+
+def _validate_sfs_mode(sfs_mode: str) -> None:
+    """Reject any value other than 'at' or 'above'."""
+    if sfs_mode not in _SFS_MODES:
+        raise ValueError(f"sfs_mode must be one of {_SFS_MODES!r}, got {sfs_mode!r}")
+
+
+def _apply_sfs_mode(pn: np.ndarray, ps: np.ndarray, sfs_mode: str) -> tuple[np.ndarray, np.ndarray]:
+    """Transform per-bin counts into the requested SFS form.
+
+    Under ``"at"`` mode the inputs are returned unchanged. Under ``"above"``
+    mode each is replaced by its inclusive right-tail cumulative sum so that
+    bin ``i`` holds the count in bins ``[i, end]`` (Uricchio et al. 2019).
+    """
+    if sfs_mode == "above":
+        return np.cumsum(pn[::-1])[::-1], np.cumsum(ps[::-1])[::-1]
+    return pn, ps
 
 
 def _exponential_model(x: np.ndarray, a: float, b: float, c: float) -> np.ndarray:
@@ -338,6 +370,7 @@ def _compute_ci_bootstrap(
     point_estimate: float,
     n_replicates: int = 100,
     seed: int = 42,
+    sfs_mode: str = "at",
 ) -> tuple[float, float]:
     """Compute CI by case-resampling the pooled polymorphism list.
 
@@ -369,8 +402,9 @@ def _compute_ci_bootstrap(
         sample = rng.integers(0, n, size=n)
         sample_bins = bin_idx[sample]
         sample_n = is_n[sample]
-        boot_pn = np.bincount(sample_bins[sample_n], minlength=num_bins)
-        boot_ps = np.bincount(sample_bins[~sample_n], minlength=num_bins)
+        boot_pn = np.bincount(sample_bins[sample_n], minlength=num_bins).astype(float)
+        boot_ps = np.bincount(sample_bins[~sample_n], minlength=num_bins).astype(float)
+        boot_pn, boot_ps = _apply_sfs_mode(boot_pn, boot_ps, sfs_mode)
 
         # Per-bin alpha where boot_ps > 0 and inside the fitting window.
         valid = (boot_ps > 0) & bin_in_window
@@ -545,16 +579,23 @@ def extract_polymorphism_data(
 def aggregate_polymorphism_data(
     gene_data: list[PolymorphismData],
     num_bins: int = 20,
+    sfs_mode: str = "at",
 ) -> AggregatedSFS:
     """Aggregate polymorphism data from multiple genes into SFS bins.
 
     Args:
         gene_data: List of PolymorphismData from individual genes
         num_bins: Number of frequency bins
+        sfs_mode: ``"at"`` (default, Messer & Petrov 2013) returns per-bin
+            counts. ``"above"`` (Uricchio et al. 2019) returns the inclusive
+            right-tail cumulative SFS — bin ``i`` holds the count of
+            polymorphisms with frequency ``>= bin_edges[i]``.
 
     Returns:
         AggregatedSFS with per-bin Pn/Ps counts and total divergence
     """
+    _validate_sfs_mode(sfs_mode)
+
     # Sum divergence across all genes
     dn_total = sum(g.dn for g in gene_data)
     ds_total = sum(g.ds for g in gene_data)
@@ -582,6 +623,11 @@ def aggregate_polymorphism_data(
         else:
             ps_counts[bin_idx] += 1
 
+    pn_total = int(pn_counts.sum())
+    ps_total = int(ps_counts.sum())
+
+    pn_counts, ps_counts = _apply_sfs_mode(pn_counts, ps_counts, sfs_mode)
+
     return AggregatedSFS(
         bin_edges=bin_edges,
         pn_counts=pn_counts,
@@ -591,6 +637,9 @@ def aggregate_polymorphism_data(
         num_genes=len(gene_data),
         ln_total=ln_total,
         ls_total=ls_total,
+        pn_total=pn_total,
+        ps_total=ps_total,
+        sfs_mode=sfs_mode,
     )
 
 
@@ -601,6 +650,7 @@ def asymptotic_mk_test_aggregated(
     frequency_cutoffs: tuple[float, float] = (0.1, 0.9),
     ci_method: str = "monte-carlo",
     seed: int = 42,
+    sfs_mode: str = "at",
 ) -> AsymptoticMKResult:
     """Genome-wide asymptotic MK test on aggregated data.
 
@@ -626,28 +676,29 @@ def asymptotic_mk_test_aggregated(
     """
     if ci_method not in ("monte-carlo", "bootstrap"):
         raise ValueError(f"ci_method must be 'monte-carlo' or 'bootstrap', got {ci_method!r}")
+    _validate_sfs_mode(sfs_mode)
 
     # Aggregate the data
-    agg = aggregate_polymorphism_data(gene_data, num_bins)
+    agg = aggregate_polymorphism_data(gene_data, num_bins, sfs_mode=sfs_mode)
 
     dn = agg.dn_total
     ds = agg.ds_total
     bin_edges = agg.bin_edges
     bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
 
-    # Calculate total polymorphisms
-    pn_total = int(np.sum(agg.pn_counts))
-    ps_total = int(np.sum(agg.ps_counts))
+    # Total polymorphisms (raw, mode-invariant — used for the simple-α fallback
+    # and for output reporting, never for the per-bin α(x) curve).
+    pn_total = agg.pn_total
+    ps_total = agg.ps_total
 
-    # Calculate per-bin alpha for each frequency bin (matching asymptoticMK R package)
-    # α(x) = 1 - (d0/d) * (p(x)/p0(x)) where p(x) and p0(x) are per-bin counts
+    # Calculate per-bin alpha for each frequency bin (matching asymptoticMK R package
+    # under "at" mode; under "above" mode this is α(>x) on the cumulative SFS).
     alpha_values = []
     valid_centers = []
 
     for i in range(num_bins):
-        # Per-bin counts (not cumulative)
-        pn_bin = int(agg.pn_counts[i])
-        ps_bin = int(agg.ps_counts[i])
+        pn_bin = float(agg.pn_counts[i])
+        ps_bin = float(agg.ps_counts[i])
 
         if ds > 0 and dn > 0 and ps_bin > 0:
             alpha_x = 1.0 - (ds / dn) * (pn_bin / ps_bin)
@@ -673,6 +724,7 @@ def asymptotic_mk_test_aggregated(
             pn_total=pn_total,
             ps_total=ps_total,
             ci_method=ci_method,
+            sfs_mode=sfs_mode,
         )
         return _attach_omega(result, agg.ln_total, agg.ls_total)
 
@@ -798,6 +850,7 @@ def asymptotic_mk_test_aggregated(
             pn_total=pn_total,
             ps_total=ps_total,
             ci_method=ci_method,
+            sfs_mode=sfs_mode,
         )
         return _attach_omega(result, agg.ln_total, agg.ls_total)
 
@@ -819,6 +872,7 @@ def asymptotic_mk_test_aggregated(
                 exp_alpha,
                 n_replicates=ci_replicates,
                 seed=seed,
+                sfs_mode=sfs_mode,
             )
         else:
             ci_low_lin, ci_high_lin = _compute_ci_bootstrap(
@@ -835,6 +889,7 @@ def asymptotic_mk_test_aggregated(
                 lin_alpha,
                 n_replicates=ci_replicates,
                 seed=seed,
+                sfs_mode=sfs_mode,
             )
 
     if use_exponential:
@@ -856,6 +911,7 @@ def asymptotic_mk_test_aggregated(
             pn_total=pn_total,
             ps_total=ps_total,
             ci_method=ci_method,
+            sfs_mode=sfs_mode,
         )
     else:
         a_lin, b_lin = lin_popt
@@ -876,6 +932,7 @@ def asymptotic_mk_test_aggregated(
             pn_total=pn_total,
             ps_total=ps_total,
             ci_method=ci_method,
+            sfs_mode=sfs_mode,
         )
     return _attach_omega(result, agg.ln_total, agg.ls_total)
 
@@ -888,6 +945,7 @@ def asymptotic_mk_test(
     num_bins: int = 10,
     bootstrap_replicates: int = 100,
     pool_polymorphisms: bool = False,
+    sfs_mode: str = "at",
 ) -> AsymptoticMKResult:
     """Perform the asymptotic McDonald-Kreitman test.
 
@@ -912,6 +970,8 @@ def asymptotic_mk_test(
     Returns:
         AsymptoticMKResult containing test statistics
     """
+    _validate_sfs_mode(sfs_mode)
+
     code = genetic_code or DEFAULT_CODE
 
     # Load sequences if paths provided
@@ -990,8 +1050,8 @@ def asymptotic_mk_test(
     bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
 
     # Bin polymorphisms by derived allele frequency
-    pn_per_bin = [0] * num_bins
-    ps_per_bin = [0] * num_bins
+    pn_per_bin = np.zeros(num_bins)
+    ps_per_bin = np.zeros(num_bins)
 
     for freq, poly_type in poly_data:
         # Find which bin this frequency falls into
@@ -1002,15 +1062,17 @@ def asymptotic_mk_test(
         else:
             ps_per_bin[bin_idx] += 1
 
-    # Calculate per-bin alpha (matching asymptoticMK R package)
-    # α(x) = 1 - (d0/d) * (p(x)/p0(x)) where p(x) and p0(x) are per-bin counts
+    pn_per_bin, ps_per_bin = _apply_sfs_mode(pn_per_bin, ps_per_bin, sfs_mode)
+
+    # Calculate per-bin alpha (matching asymptoticMK R package under "at" mode;
+    # under "above" mode this is α(>x) on the cumulative SFS).
     alpha_values = []
     valid_bins = []
     valid_centers = []
 
     for i in range(num_bins):
-        pn_bin = pn_per_bin[i]
-        ps_bin = ps_per_bin[i]
+        pn_bin = float(pn_per_bin[i])
+        ps_bin = float(ps_per_bin[i])
 
         if ds > 0 and dn > 0 and ps_bin > 0:
             alpha_x = 1.0 - (ds / dn) * (pn_bin / ps_bin)
@@ -1037,6 +1099,7 @@ def asymptotic_mk_test(
             dn=dn,
             ds=ds,
             ci_method="bootstrap",
+            sfs_mode=sfs_mode,
         )
         return _attach_omega(result, ln_total, ls_total)
 
@@ -1087,6 +1150,7 @@ def asymptotic_mk_test(
         alpha_asymp,
         n_replicates=bootstrap_replicates,
         seed=42,
+        sfs_mode=sfs_mode,
     )
 
     result = AsymptoticMKResult(
@@ -1102,5 +1166,6 @@ def asymptotic_mk_test(
         dn=dn,
         ds=ds,
         ci_method="bootstrap",
+        sfs_mode=sfs_mode,
     )
     return _attach_omega(result, ln_total, ls_total)
