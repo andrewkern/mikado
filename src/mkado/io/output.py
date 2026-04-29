@@ -40,6 +40,16 @@ def _omega_full_tsv_columns(
     )
 
 
+def _omega_a_na_ci_tsv_columns(
+    result: AsymptoticMKResult | AlphaTGResult,
+) -> str:
+    """Tab-separated CI columns for omega_a and omega_na."""
+    return (
+        f"{_fmt_optional(result.omega_a_ci_low)}\t{_fmt_optional(result.omega_a_ci_high)}\t"
+        f"{_fmt_optional(result.omega_na_ci_low)}\t{_fmt_optional(result.omega_na_ci_high)}"
+    )
+
+
 def _omega_tsv_columns(result: MKResult | PolarizedMKResult) -> str:
     """Tab-separated ``Ln\\tLs\\tomega`` for omega-only result types (MK, polarized)."""
     return (
@@ -134,37 +144,47 @@ def _format_tsv(result: MKResult | PolarizedMKResult | AsymptoticMKResult | Alph
         return "\n".join(lines)
 
     elif isinstance(result, AsymptoticMKResult):
+        ci_cols = "\tomega_a_CI_low\tomega_a_CI_high\tomega_na_CI_low\tomega_na_CI_high"
         if result.num_genes > 0:
             # Aggregated result
             header = (
                 "Dn\tDs\tPn\tPs\talpha_asymptotic\tCI_low\tCI_high\tmodel\tnum_genes\t"
-                "Ln\tLs\tomega\tomega_a\tomega_na"
+                "Ln\tLs\tomega\tomega_a\tomega_na" + ci_cols
             )
             values = (
                 f"{result.dn}\t{result.ds}\t{result.pn_total}\t{result.ps_total}\t"
                 f"{result.alpha_asymptotic:.6f}\t{result.ci_low:.6f}\t{result.ci_high:.6f}\t"
                 f"{result.model_type}\t{result.num_genes}\t"
-                f"{_omega_full_tsv_columns(result)}"
+                f"{_omega_full_tsv_columns(result)}\t"
+                f"{_omega_a_na_ci_tsv_columns(result)}"
             )
         else:
-            header = "Dn\tDs\talpha_asymptotic\tCI_low\tCI_high\tLn\tLs\tomega\tomega_a\tomega_na"
+            header = (
+                "Dn\tDs\talpha_asymptotic\tCI_low\tCI_high\t"
+                "Ln\tLs\tomega\tomega_a\tomega_na" + ci_cols
+            )
             values = (
                 f"{result.dn}\t{result.ds}\t{result.alpha_asymptotic:.6f}\t"
                 f"{result.ci_low:.6f}\t{result.ci_high:.6f}\t"
-                f"{_omega_full_tsv_columns(result)}"
+                f"{_omega_full_tsv_columns(result)}\t"
+                f"{_omega_a_na_ci_tsv_columns(result)}"
             )
         return f"{header}\n{values}"
 
     elif isinstance(result, AlphaTGResult):
         header = (
             "Dn\tDs\tPn\tPs\talpha_TG\tNI_TG\tCI_low\tCI_high\tnum_genes\t"
-            "Ln\tLs\tomega\tomega_a\tomega_na"
+            "Ln\tLs\tomega\tomega_a\tomega_na\t"
+            "omega_CI_low\tomega_CI_high\t"
+            "omega_a_CI_low\tomega_a_CI_high\tomega_na_CI_low\tomega_na_CI_high"
         )
         values = (
             f"{result.dn_total}\t{result.ds_total}\t{result.pn_total}\t{result.ps_total}\t"
             f"{result.alpha_tg:.6f}\t{result.ni_tg:.6f}\t{result.ci_low:.6f}\t{result.ci_high:.6f}\t"
             f"{result.num_genes}\t"
-            f"{_omega_full_tsv_columns(result)}"
+            f"{_omega_full_tsv_columns(result)}\t"
+            f"{_fmt_optional(result.omega_ci_low)}\t{_fmt_optional(result.omega_ci_high)}\t"
+            f"{_omega_a_na_ci_tsv_columns(result)}"
         )
         return f"{header}\n{values}"
 
@@ -243,7 +263,8 @@ def format_batch_results(
         elif isinstance(first_result, AsymptoticMKResult):
             header = (
                 "gene\tDn\tDs\talpha_asymptotic\tCI_low\tCI_high\tmodel\t"
-                "Ln\tLs\tomega\tomega_a\tomega_na"
+                "Ln\tLs\tomega\tomega_a\tomega_na\t"
+                "omega_a_CI_low\tomega_a_CI_high\tomega_na_CI_low\tomega_na_CI_high"
             )
             lines = [header]
             for name, result in results:
@@ -252,7 +273,8 @@ def format_batch_results(
                         f"{name}\t{result.dn}\t{result.ds}\t"
                         f"{result.alpha_asymptotic:.6f}\t{result.ci_low:.6f}\t"
                         f"{result.ci_high:.6f}\t{result.model_type}\t"
-                        f"{_omega_full_tsv_columns(result)}"
+                        f"{_omega_full_tsv_columns(result)}\t"
+                        f"{_omega_a_na_ci_tsv_columns(result)}"
                     )
             return "\n".join(lines)
 

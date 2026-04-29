@@ -20,6 +20,16 @@
   per-gene Smith-Eyre-Walker / polarized alpha is too noisy for a
   meaningful rate decomposition. See `docs/omega.rst` for the
   rationale.
+- 95% confidence intervals on the omega decomposition where a sampling
+  procedure is already available. `AsymptoticMKResult` exposes
+  `omega_a_ci_low`/`omega_a_ci_high` and `omega_na_ci_low`/`omega_na_ci_high`
+  by scaling the existing alpha CI (Dn/Ds/Ln/Ls are constants under the
+  asymptotic Monte Carlo, so omega itself has no sampling distribution).
+  `AlphaTGResult` recomputes omega/omega_a/omega_na per gene-resampled
+  bootstrap replicate and reports `omega_ci_low/high`,
+  `omega_a_ci_low/high`, `omega_na_ci_low/high` from the percentile
+  distribution. `ImputedMKResult` does not (yet) bootstrap and reports
+  point estimates only.
 - `omega_decomposition()` helper in `mkado.analysis.statistics`.
 - `AlignedPair.count_total_sites()` aggregating Nei-Gojobori `(Ln, Ls)`
   totals over analyzed codons.

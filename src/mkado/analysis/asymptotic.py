@@ -125,6 +125,41 @@ class AsymptoticMKResult:
     omega_na: float | None = None
     """Non-adaptive component ``(1 - alpha_asymptotic) * omega``."""
 
+    # Dn, Ds, Ln, Ls are constants under the asymptotic Monte Carlo procedure,
+    # so omega has no sampling distribution. The CIs on omega_a and omega_na
+    # are pure arithmetic transforms of the existing alpha CI: no need to
+    # store them.
+    @property
+    def omega_a_ci_low(self) -> float | None:
+        """Lower 95% CI for ``omega_a`` = ``ci_low * omega``."""
+        if self.omega is None:
+            return None
+        return self.ci_low * self.omega
+
+    @property
+    def omega_a_ci_high(self) -> float | None:
+        """Upper 95% CI for ``omega_a`` = ``ci_high * omega``."""
+        if self.omega is None:
+            return None
+        return self.ci_high * self.omega
+
+    @property
+    def omega_na_ci_low(self) -> float | None:
+        """Lower 95% CI for ``omega_na`` = ``(1 - ci_high) * omega``.
+
+        Percentiles flip because ``(1 - alpha)`` is monotonically decreasing.
+        """
+        if self.omega is None:
+            return None
+        return (1.0 - self.ci_high) * self.omega
+
+    @property
+    def omega_na_ci_high(self) -> float | None:
+        """Upper 95% CI for ``omega_na`` = ``(1 - ci_low) * omega``."""
+        if self.omega is None:
+            return None
+        return (1.0 - self.ci_low) * self.omega
+
     def __str__(self) -> str:
         lines = [
             "Asymptotic MK Test Results:",
@@ -143,6 +178,16 @@ class AsymptoticMKResult:
                 f"  omega: {self.omega:.4f} "
                 f"(omega_a={omega_a_str}, omega_na={omega_na_str})"
             )
+            if self.omega_a_ci_low is not None and self.omega_a_ci_high is not None:
+                lines.append(
+                    f"    omega_a 95% CI:  ({self.omega_a_ci_low:.4f}, "
+                    f"{self.omega_a_ci_high:.4f})"
+                )
+            if self.omega_na_ci_low is not None and self.omega_na_ci_high is not None:
+                lines.append(
+                    f"    omega_na 95% CI: ({self.omega_na_ci_low:.4f}, "
+                    f"{self.omega_na_ci_high:.4f})"
+                )
         if self.num_genes > 0:
             lines.append(f"  Genes aggregated: {self.num_genes}")
         if self.model_type == "exponential":
@@ -186,6 +231,10 @@ class AsymptoticMKResult:
         result["omega"] = self.omega
         result["omega_a"] = self.omega_a
         result["omega_na"] = self.omega_na
+        result["omega_a_ci_low"] = self.omega_a_ci_low
+        result["omega_a_ci_high"] = self.omega_a_ci_high
+        result["omega_na_ci_low"] = self.omega_na_ci_low
+        result["omega_na_ci_high"] = self.omega_na_ci_high
         return result
 
 
@@ -194,7 +243,7 @@ def _attach_omega(
     ln: float | None,
     ls: float | None,
 ) -> AsymptoticMKResult:
-    """Populate ln/ls/omega fields on an asymptotic result in-place."""
+    """Populate ln/ls/omega point estimates on an asymptotic result in-place."""
     omega, omega_a, omega_na = omega_decomposition(
         result.dn, result.ds, ln, ls, result.alpha_asymptotic
     )

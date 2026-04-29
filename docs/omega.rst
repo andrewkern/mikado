@@ -112,6 +112,45 @@ If you need a per-gene ω_a estimate with proper uncertainty quantification,
 consider the SnIPRE Bayesian hierarchical estimator (`Eilertson et al. 2012`_)
 — not currently implemented in MKado.
 
+Confidence intervals
+--------------------
+
+For result types that already perform a sampling procedure to estimate α,
+MKado also reports 95% CIs on ω_a and ω_na (and on ω itself where it has a
+sampling distribution):
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 20 25 25
+
+   * - Result type
+     - ω CI
+     - ω_a CI
+     - ω_na CI
+   * - ``AsymptoticMKResult``
+     - n/a (constant)
+     - ``α_CI × ω``
+     - ``(1 − α_CI) × ω`` (flipped)
+   * - ``AlphaTGResult``
+     - bootstrap
+     - bootstrap
+     - bootstrap
+
+For ``AsymptoticMKResult`` the asymptotic-fit Monte Carlo (or exponential-fit
+bootstrap) only resamples polymorphisms — Dn, Ds, Ln, Ls are constants of the
+alignment. ω therefore has no sampling distribution and is reported as a
+point estimate. The CIs on ω_a and ω_na are derived analytically by scaling
+the α CI (``ω_a_ci_low = α_ci_low × ω``, etc.); the ω_na percentiles flip
+because ``(1 − α)`` is monotonically decreasing in α.
+
+For ``AlphaTGResult`` the bootstrap resamples genes, so Dn, Ds, Ln, Ls all
+vary per replicate and ω has its own bootstrap distribution. ω, ω_a, and
+ω_na are recomputed per replicate and 2.5%/97.5% percentiles taken.
+
+ImputedMKResult does not currently report CIs on ω_a / ω_na — the imputed
+test produces a single point estimate. If you need CIs there, consider
+running the imputed test on bootstrap replicates of the input alignment.
+
 Edge cases
 ----------
 
