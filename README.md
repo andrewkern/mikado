@@ -10,7 +10,7 @@ A modern Python implementation of the McDonald-Kreitman test toolkit for detecti
 ## Features
 
 - **Standard MK test**: Classic 2x2 contingency table with Fisher's exact test
-- **Polarized MK test**: Uses a third outgroup to assign mutations to lineages
+- **Polarized MK test**: Uses a second outgroup to assign mutations to lineages
 - **Asymptotic MK test**: Frequency-bin α estimates with exponential extrapolation (Messer & Petrov 2013)
 - **Tarone-Greenland α_TG**: Weighted multi-gene estimator that corrects for sample size heterogeneity (Stoletzki & Eyre-Walker 2011)
 - **Alternate genetic codes**: 24 NCBI genetic code tables (mitochondrial, plastid, etc.) selectable by name
