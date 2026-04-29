@@ -121,6 +121,11 @@ The imputed test reports:
 - **Pn_neutral**: Nonsynonymous polymorphisms after removing imputed slightly deleterious mutations
 - **Dn, Ds, Pn, Ps**: Raw counts
 - **cutoff**: The DAF cutoff used
+- **Ln, Ls**: Nei-Gojobori non-synonymous and synonymous site totals
+- **omega, omega_a, omega_na**: dN/dS and the adaptive/non-adaptive
+  decomposition (``omega_a = alpha * omega``). Reported as point
+  estimates only — the imputed test does not currently bootstrap, so
+  no CIs are produced. See :doc:`omega` for the decomposition formula.
 
 Example output (pretty format):
 
@@ -134,6 +139,8 @@ Example output (pretty format):
      Pn (neutral):  6.18
      Alpha:         0.5154
      p-value:       0.0891
+     Sites:         Ln=576.00, Ls=195.00
+     omega:         0.2539 (omega_a=0.1308, omega_na=0.1230)
 
 Comparison with Other Methods
 -----------------------------

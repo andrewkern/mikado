@@ -56,16 +56,24 @@ The output includes:
 
 - **alpha_TG**: Proportion of adaptive substitutions (1 - NI_TG)
 - **NI_TG**: The weighted neutrality index
-- **CI_low, CI_high**: 95% bootstrap confidence interval
+- **CI_low, CI_high**: 95% bootstrap confidence interval on alpha_TG
 - **num_genes**: Number of genes analyzed
 - **Dn, Ds, Pn, Ps**: Total counts across all genes
+- **Ln, Ls**: Nei-Gojobori non-synonymous and synonymous site totals
+- **omega**: dN/dS ratio ``(Dn/Ds) * (Ls/Ln)``
+- **omega_a, omega_na**: Adaptive and non-adaptive substitution rates
+- **omega_CI_low/high, omega_a_CI_low/high, omega_na_CI_low/high**:
+  95% bootstrap CIs. Because the gene-resampling bootstrap varies Dn, Ds,
+  Ln, and Ls per replicate, omega itself has a bootstrap distribution here
+  (unlike in the asymptotic test where Ln/Ls are constants). See
+  :doc:`omega` for the rationale.
 
-Example output (TSV format):
+Example output (TSV format, abbreviated):
 
 .. code-block:: text
 
-   Dn      Ds      Pn    Ps      alpha_TG  NI_TG     CI_low    CI_high   num_genes
-   18828   49857   7843  25083   0.022781  0.977219  -0.053529 0.088672  400
+   Dn      Ds      Pn    Ps      alpha_TG  NI_TG     CI_low    CI_high   num_genes  ...  omega    omega_a  omega_na  omega_CI_low  omega_CI_high  ...
+   18828   49857   7843  25083   0.022781  0.977219  -0.053529 0.088672  400        ...  0.1117   0.0025   0.1092    0.1075        0.1158         ...
 
 Comparison with Other Methods
 -----------------------------
