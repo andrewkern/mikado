@@ -132,13 +132,45 @@ Batch Analysis (Per-Gene)
    # Separate asymptotic test for each gene
    mkado batch alignments/ -i ingroup -o outgroup -a --per-gene
 
+Confidence Interval Method
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For aggregated analyses, MKado offers two CI methods via ``--ci-method``:
+
+- **monte-carlo** (default): samples curve-fit parameters from a
+  multivariate normal of the fit covariance matrix. Fast (the model is
+  evaluated, not refit, per draw) but parametric — assumes the fit
+  uncertainty is well-described by its covariance.
+- **bootstrap**: case-resampling of the pooled polymorphism list with
+  replacement; the curve is refit each replicate. More principled for
+  small per-bin counts (the typical MK setting); slower because each
+  replicate refits.
+
+.. code-block:: bash
+
+   # Default: parametric Monte Carlo CI
+   mkado batch alignments/ -i ingroup -o outgroup -a
+
+   # Bootstrap CI (refit per replicate)
+   mkado batch alignments/ -i ingroup -o outgroup -a --ci-method bootstrap
+
+   # Bootstrap with more replicates
+   mkado batch alignments/ -i ingroup -o outgroup -a --ci-method bootstrap --bootstrap 500
+
+The bootstrap is held to whichever model (exponential or linear) the
+point estimate selected via AIC, so the CI is comparable across methods.
+
+The flag is silently accepted but has no effect on per-gene asymptotic
+runs (those have always used a polymorphism-list bootstrap natively).
+
 Output
 ------
 
 The asymptotic test reports:
 
 - **alpha_asymptotic**: Extrapolated alpha at derived frequency = 1.0
-- **CI_low, CI_high**: 95% bootstrap confidence interval
+- **CI_low, CI_high**: 95% confidence interval (method recorded in ``ci_method``)
+- **ci_method**: ``"monte-carlo"`` (default) or ``"bootstrap"`` (case-resampling)
 - **model_type**: Selected model (exponential or linear)
 - **a, b, c**: Fitted model parameters (c only for exponential)
 - **Ln, Ls**: Nei-Gojobori non-synonymous and synonymous site totals

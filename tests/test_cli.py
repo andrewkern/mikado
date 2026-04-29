@@ -410,3 +410,64 @@ ATGGTGATG
         )
         assert result.exit_code == 1
         assert "Unknown genetic code" in result.output
+
+
+class TestCiMethodOption:
+    """Tests for --ci-method flag."""
+
+    def _make_alignment_dir(self, tmp_path: Path) -> Path:
+        """Build a tiny multi-gene alignment dir suitable for batch -a."""
+        alignment_dir = tmp_path / "alignments"
+        alignment_dir.mkdir()
+        # Three genes; each has a couple of polymorphisms across frequency
+        for i, codons in enumerate(["ATGTTT", "ATGTTC", "ATGTTA"]):
+            fa = alignment_dir / f"gene{i}.fa"
+            fa.write_text(
+                f">speciesA_1\n{codons}\n>speciesA_2\nATG{codons[3:]}\n"
+                f">speciesA_3\n{codons}\n>speciesB_1\nATGTTG\n"
+            )
+        return alignment_dir
+
+    def test_invalid_ci_method_rejected_in_test(self, tmp_path: Path) -> None:
+        fasta = tmp_path / "test.fa"
+        fasta.write_text(">speciesA_1\nATGATGATG\n>speciesB_1\nATGGTGATG\n")
+        result = runner.invoke(
+            app,
+            ["test", str(fasta), "-i", "speciesA", "-o", "speciesB", "--ci-method", "bogus"],
+        )
+        assert result.exit_code == 1
+        assert "Invalid --ci-method" in result.output
+
+    def test_invalid_ci_method_rejected_in_batch(self, tmp_path: Path) -> None:
+        alignment_dir = self._make_alignment_dir(tmp_path)
+        result = runner.invoke(
+            app,
+            ["batch", str(alignment_dir), "-i", "speciesA", "-o", "speciesB",
+             "--ci-method", "bogus"],
+        )
+        assert result.exit_code == 1
+        assert "Invalid --ci-method" in result.output
+
+    def test_ci_method_default_is_monte_carlo_in_tsv(self, tmp_path: Path) -> None:
+        """Default --ci-method should produce ci_method=monte-carlo in batch -a output."""
+        alignment_dir = self._make_alignment_dir(tmp_path)
+        result = runner.invoke(
+            app,
+            ["batch", str(alignment_dir), "-i", "speciesA", "-o", "speciesB",
+             "--asymptotic", "--format", "tsv"],
+        )
+        assert result.exit_code == 0
+        assert "ci_method" in result.output
+        assert "monte-carlo" in result.output
+
+    def test_ci_method_bootstrap_appears_in_tsv(self, tmp_path: Path) -> None:
+        alignment_dir = self._make_alignment_dir(tmp_path)
+        result = runner.invoke(
+            app,
+            ["batch", str(alignment_dir), "-i", "speciesA", "-o", "speciesB",
+             "--asymptotic", "--ci-method", "bootstrap", "--bootstrap", "20",
+             "--format", "tsv"],
+        )
+        assert result.exit_code == 0
+        assert "ci_method" in result.output
+        assert "bootstrap" in result.output

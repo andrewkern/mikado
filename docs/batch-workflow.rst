@@ -80,6 +80,18 @@ Aggregated Analysis
 
 This outputs a single asymptotic alpha estimate for the entire gene set.
 
+By default, the 95% CI is computed by sampling parameters from the curve-fit
+covariance matrix (parametric Monte Carlo). Pass ``--ci-method bootstrap``
+for case-resampling of the pooled polymorphism list — slower per replicate
+but more principled for small per-bin counts:
+
+.. code-block:: bash
+
+   # Bootstrap CI (refit per replicate)
+   mkado batch alignments/ -i species1 -o species2 -a --ci-method bootstrap
+
+See :doc:`asymptotic` for when to choose each.
+
 Asymptotic Alpha Plot
 ^^^^^^^^^^^^^^^^^^^^^
 

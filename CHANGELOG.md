@@ -35,6 +35,25 @@
   totals over analyzed codons.
 - `Ln`, `Ls`, `omega`, `omega_a`, and `omega_na` columns in pretty,
   TSV, and JSON output for all result types.
+- `--ci-method {monte-carlo,bootstrap}` CLI flag on `test`, `batch`, and
+  `vcf` commands. The new `bootstrap` mode uses case-resampling of the
+  pooled polymorphism list with replacement, refitting the curve per
+  replicate (closes #10). Default remains `monte-carlo` to preserve
+  existing behavior. Each result type now records the CI method via a
+  `ci_method` field on `AsymptoticMKResult` (default `"monte-carlo"`),
+  `AlphaTGResult` (`"bootstrap"`), and `ImputedMKResult`
+  (`"bootstrap"` when set, `None` when no CI was computed).
+- Bootstrap CI on imputed-MK alpha. `imputed_mk_test` and
+  `imputed_mk_test_multi` now accept `n_bootstrap: int = 0` (preserves
+  legacy behavior when 0) and `seed: int = 42`. CLI: enabled
+  automatically when `--bootstrap > 0` (the existing flag drives the
+  replicate count). New fields on `ImputedMKResult`:
+  `alpha_ci_low/high`, `omega_a_ci_low/high`, `omega_na_ci_low/high`,
+  `ci_method`. Following the asymptotic CI pattern, omega-decomposition
+  CIs are derived analytically from the alpha CI scaled by omega.
+- `_compute_ci_bootstrap()` helper in `mkado.analysis.asymptotic`
+  alongside the existing `_compute_ci_monte_carlo()`.
+- `_bootstrap_imputed_alpha()` helper in `mkado.analysis.imputed`.
 
 ## [0.4.0] - 2026-03-17
 

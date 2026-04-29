@@ -85,12 +85,16 @@ class AlphaTGResult:
     """Lower 95% bootstrap CI for ``omega_na``."""
     omega_na_ci_high: float | None = None
     """Upper 95% bootstrap CI for ``omega_na``."""
+    ci_method: str = "bootstrap"
+    """Method used for the CI. Always ``"bootstrap"`` (gene-level resampling)
+    for ``AlphaTGResult`` — the weighted estimator has no parametric MC analog."""
 
     def __str__(self) -> str:
         """Return a human-readable string representation."""
         lines = [
             "Tarone-Greenland Alpha (Stoletzki & Eyre-Walker 2011):",
-            f"  α_TG:  {self.alpha_tg:.4f} (95% CI: {self.ci_low:.4f} - {self.ci_high:.4f})",
+            f"  α_TG:  {self.alpha_tg:.4f} "
+            f"(95% CI [{self.ci_method}]: {self.ci_low:.4f} - {self.ci_high:.4f})",
             f"  NI_TG: {self.ni_tg:.4f}",
             f"  Divergence:    Dn={self.dn_total}, Ds={self.ds_total}",
             f"  Polymorphism:  Pn={self.pn_total}, Ps={self.ps_total}",
@@ -143,6 +147,7 @@ class AlphaTGResult:
             "omega_a_ci_high": self.omega_a_ci_high,
             "omega_na_ci_low": self.omega_na_ci_low,
             "omega_na_ci_high": self.omega_na_ci_high,
+            "ci_method": self.ci_method,
         }
 
 

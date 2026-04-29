@@ -37,6 +37,7 @@ class VcfBatchTask:
     use_imputed: bool = False
     imputed_cutoff: float = 0.15
     extract_only: bool = False
+    ci_method: str = "monte-carlo"
 
 
 @dataclass
@@ -109,10 +110,16 @@ def _process_single_gene(
         if task.use_asymptotic:
             from mkado.analysis.asymptotic import asymptotic_mk_test_aggregated
 
+            # MC samples params from a covariance matrix (cheap, ~10000×); bootstrap
+            # refits the curve per replicate (expensive, ~100×) — hence the 100× factor.
+            ci_replicates = (
+                task.bootstrap * 100 if task.ci_method == "monte-carlo" else task.bootstrap
+            )
             result = asymptotic_mk_test_aggregated(
                 gene_data=[poly_data],
                 num_bins=task.bins,
-                ci_replicates=task.bootstrap * 100,
+                ci_replicates=ci_replicates,
+                ci_method=task.ci_method,
             )
             return WorkerResult(gene_id=task.gene_id, result=result, warning=warning)
 
@@ -120,7 +127,9 @@ def _process_single_gene(
         if task.use_imputed:
             from mkado.analysis.imputed import imputed_mk_test
 
-            result = imputed_mk_test(poly_data, cutoff=task.imputed_cutoff)
+            result = imputed_mk_test(
+                poly_data, cutoff=task.imputed_cutoff, n_bootstrap=task.bootstrap
+            )
             return WorkerResult(gene_id=task.gene_id, result=result, warning=warning)
 
         # Standard MK from counts
@@ -233,10 +242,16 @@ def process_vcf_gene(task: VcfBatchTask) -> WorkerResult:
         if task.use_asymptotic:
             from mkado.analysis.asymptotic import asymptotic_mk_test_aggregated
 
+            # MC samples params from a covariance matrix (cheap, ~10000×); bootstrap
+            # refits the curve per replicate (expensive, ~100×) — hence the 100× factor.
+            ci_replicates = (
+                task.bootstrap * 100 if task.ci_method == "monte-carlo" else task.bootstrap
+            )
             result = asymptotic_mk_test_aggregated(
                 gene_data=[poly_data],
                 num_bins=task.bins,
-                ci_replicates=task.bootstrap * 100,
+                ci_replicates=ci_replicates,
+                ci_method=task.ci_method,
             )
             return WorkerResult(gene_id=task.gene_id, result=result, warning=warning)
 
@@ -244,7 +259,9 @@ def process_vcf_gene(task: VcfBatchTask) -> WorkerResult:
         if task.use_imputed:
             from mkado.analysis.imputed import imputed_mk_test
 
-            result = imputed_mk_test(poly_data, cutoff=task.imputed_cutoff)
+            result = imputed_mk_test(
+                poly_data, cutoff=task.imputed_cutoff, n_bootstrap=task.bootstrap
+            )
             return WorkerResult(gene_id=task.gene_id, result=result, warning=warning)
 
         # Standard MK from counts

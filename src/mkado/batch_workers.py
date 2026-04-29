@@ -72,6 +72,10 @@ class BatchTask:
     code_table: int = 1
     """NCBI genetic code table ID."""
 
+    ci_method: str = "monte-carlo"
+    """CI method for aggregated asymptotic MK ("monte-carlo" or "bootstrap").
+    Ignored for non-aggregated modes."""
+
 
 @dataclass
 class WorkerResult:
@@ -123,9 +127,7 @@ def process_gene(task: BatchTask) -> WorkerResult:
         # Determine mode: combined file or separate files
         if task.ingroup_match is not None:
             # Combined file mode
-            all_seqs = SequenceSet.from_fasta(
-                task.file_path, reading_frame=task.reading_frame
-            )
+            all_seqs = SequenceSet.from_fasta(task.file_path, reading_frame=task.reading_frame)
             ingroup_seqs = all_seqs.filter_by_name(task.ingroup_match)
             outgroup_seqs = all_seqs.filter_by_name(task.outgroup_match)
 
@@ -184,7 +186,9 @@ def process_gene(task: BatchTask) -> WorkerResult:
                     gene_id=gene_id,
                     genetic_code=genetic_code,
                 )
-                result = imputed_mk_test(poly_data, cutoff=task.imputed_cutoff)
+                result = imputed_mk_test(
+                    poly_data, cutoff=task.imputed_cutoff, n_bootstrap=task.bootstrap
+                )
                 return WorkerResult(gene_id=gene_id, result=result)
 
             # Polarized mode
@@ -275,7 +279,9 @@ def process_gene(task: BatchTask) -> WorkerResult:
                     gene_id=gene_id,
                     genetic_code=genetic_code,
                 )
-                result = imputed_mk_test(poly_data, cutoff=task.imputed_cutoff)
+                result = imputed_mk_test(
+                    poly_data, cutoff=task.imputed_cutoff, n_bootstrap=task.bootstrap
+                )
                 return WorkerResult(gene_id=gene_id, result=result)
 
             # Polarized mode

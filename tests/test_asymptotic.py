@@ -321,9 +321,7 @@ class TestMonteCarloCi:
         popt = np.array([0.1, 0.8])
         pcov = np.array([[0.001, 0.0], [0.0, 0.001]])
 
-        ci_low, ci_high = _compute_ci_monte_carlo(
-            popt, pcov, _linear_model, n_sim=5000
-        )
+        ci_low, ci_high = _compute_ci_monte_carlo(popt, pcov, _linear_model, n_sim=5000)
 
         # CI should bracket the point estimate at x=1
         alpha_at_1 = 0.1 + 0.8  # = 0.9
@@ -336,15 +334,15 @@ class TestMonteCarloCi:
         # Model: α(x) = a + b * exp(-c * x)
         # For typical positive selection signal, b is negative (alpha increases with x)
         popt = np.array([0.5, -0.3, 2.0])
-        pcov = np.array([
-            [0.001, 0.0, 0.0],
-            [0.0, 0.001, 0.0],
-            [0.0, 0.0, 0.01],
-        ])
-
-        ci_low, ci_high = _compute_ci_monte_carlo(
-            popt, pcov, _exponential_model, n_sim=5000
+        pcov = np.array(
+            [
+                [0.001, 0.0, 0.0],
+                [0.0, 0.001, 0.0],
+                [0.0, 0.0, 0.01],
+            ]
         )
+
+        ci_low, ci_high = _compute_ci_monte_carlo(popt, pcov, _exponential_model, n_sim=5000)
 
         # CI should bracket the point estimate
         # α(1) = a + b * exp(-c) = 0.5 + (-0.3) * exp(-2.0)
@@ -393,9 +391,7 @@ class TestAsymptoticMKTestAggregated:
         if not ingroup.exists() or not outgroup.exists():
             pytest.skip("Test data files not found")
 
-        gene_data = [
-            extract_polymorphism_data(ingroup, outgroup, gene_id="adh")
-        ]
+        gene_data = [extract_polymorphism_data(ingroup, outgroup, gene_id="adh")]
 
         result = asymptotic_mk_test_aggregated(gene_data, num_bins=5)
 
@@ -444,3 +440,179 @@ class TestAsymptoticMKTestAggregated:
         assert d["ps_total"] == 800
         assert d["model_type"] == "linear"
         assert "c" not in d["fit_parameters"]  # Linear model has no c
+
+
+def _make_aggregated_gene_data(
+    num_genes: int = 10,
+    dn_per_gene: int = 10,
+    ds_per_gene: int = 15,
+    seed: int = 0,
+) -> list[PolymorphismData]:
+    """Build a deterministic but signal-bearing fixture for the aggregated test."""
+    rng = np.random.default_rng(seed)
+    gene_data = []
+    for i in range(num_genes):
+        poly: list[tuple[float, str]] = []
+        # Spread polymorphisms across the SFS so the curve fit converges.
+        for freq in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]:
+            n_pn = int(rng.integers(1, 5))
+            n_ps = int(rng.integers(2, 7))
+            poly.extend([(freq, "N")] * n_pn)
+            poly.extend([(freq, "S")] * n_ps)
+        gene_data.append(
+            PolymorphismData(
+                polymorphisms=poly,
+                dn=dn_per_gene,
+                ds=ds_per_gene,
+                gene_id=f"gene{i}",
+                ln=300.0,
+                ls=100.0,
+            )
+        )
+    return gene_data
+
+
+class TestBootstrapCi:
+    """Tests for the multinomial-style bootstrap CI on asymptotic_mk_test_aggregated."""
+
+    def test_ci_method_default_is_monte_carlo(self) -> None:
+        """Default CI method preserves existing behavior."""
+        gene_data = _make_aggregated_gene_data(num_genes=15, seed=1)
+        result = asymptotic_mk_test_aggregated(gene_data, num_bins=10)
+        assert result.ci_method == "monte-carlo"
+
+    def test_ci_method_bootstrap_sets_field(self) -> None:
+        """ci_method='bootstrap' is recorded on the result."""
+        gene_data = _make_aggregated_gene_data(num_genes=15, seed=2)
+        result = asymptotic_mk_test_aggregated(
+            gene_data, num_bins=10, ci_method="bootstrap", ci_replicates=100, seed=42
+        )
+        assert result.ci_method == "bootstrap"
+
+    def test_bootstrap_brackets_point_estimate(self) -> None:
+        """Bootstrap CI should bracket alpha_asymptotic for well-behaved data."""
+        gene_data = _make_aggregated_gene_data(num_genes=30, seed=3)
+        result = asymptotic_mk_test_aggregated(
+            gene_data, num_bins=10, ci_method="bootstrap", ci_replicates=200, seed=42
+        )
+        # CI may be wide on small synthetic data, but it should bracket the point estimate.
+        assert result.ci_low <= result.alpha_asymptotic <= result.ci_high
+
+    def test_bootstrap_reproducibility_with_seed(self) -> None:
+        """Same seed → same CI."""
+        gene_data = _make_aggregated_gene_data(num_genes=15, seed=4)
+        r1 = asymptotic_mk_test_aggregated(
+            gene_data, num_bins=10, ci_method="bootstrap", ci_replicates=100, seed=42
+        )
+        r2 = asymptotic_mk_test_aggregated(
+            gene_data, num_bins=10, ci_method="bootstrap", ci_replicates=100, seed=42
+        )
+        assert r1.ci_low == r2.ci_low
+        assert r1.ci_high == r2.ci_high
+
+    def test_bootstrap_zero_count_bin_does_not_crash(self) -> None:
+        """Sparse fixture with empty bins should produce a valid result, not crash."""
+        # Polymorphisms only at three frequencies → most bins are empty
+        sparse_gene = PolymorphismData(
+            polymorphisms=[(0.2, "N")] * 3
+            + [(0.5, "N")] * 4
+            + [(0.8, "N")] * 2
+            + [(0.2, "S")] * 6
+            + [(0.5, "S")] * 8
+            + [(0.8, "S")] * 4,
+            dn=10,
+            ds=15,
+            gene_id="sparse",
+            ln=300.0,
+            ls=100.0,
+        )
+        result = asymptotic_mk_test_aggregated(
+            [sparse_gene] * 5,
+            num_bins=20,
+            ci_method="bootstrap",
+            ci_replicates=50,
+            seed=42,
+        )
+        # Should produce some result; CI may degenerate to point estimate but must not crash.
+        assert isinstance(result, AsymptoticMKResult)
+        assert result.ci_method == "bootstrap"
+
+    def test_bootstrap_invalid_method_rejected(self) -> None:
+        """Unknown ci_method should raise."""
+        gene_data = _make_aggregated_gene_data(num_genes=10, seed=5)
+        with pytest.raises(ValueError, match="ci_method"):
+            asymptotic_mk_test_aggregated(gene_data, num_bins=10, ci_method="bogus")
+
+    def test_bootstrap_to_dict_includes_ci_method(self) -> None:
+        """ci_method appears in to_dict() output."""
+        gene_data = _make_aggregated_gene_data(num_genes=15, seed=6)
+        result = asymptotic_mk_test_aggregated(
+            gene_data, num_bins=10, ci_method="bootstrap", ci_replicates=50, seed=42
+        )
+        assert result.to_dict()["ci_method"] == "bootstrap"
+
+
+class TestBootstrapCiCoverage:
+    """Synthetic-coverage acceptance test (replaces issue's 'human dataset' criterion)."""
+
+    @pytest.mark.slow
+    def test_coverage_approx_nominal(self) -> None:
+        """Across many trials simulating data from a known α(x), the 95% CI should cover the truth most of the time.
+
+        This is a stochastic test; we only require coverage between 0.7 and 1.0
+        rather than exactly 0.95, since the bootstrap is approximate and we can
+        only afford ~50 trials in CI runtime.
+        """
+        true_a, true_b, true_c = 0.5, -0.4, 3.0
+        true_alpha_at_1 = true_a + true_b * np.exp(-true_c)
+        n_trials = 50
+        n_replicates = 100
+        master_rng = np.random.default_rng(2026)
+        n_inside = 0
+
+        for trial in range(n_trials):
+            sim_seed = int(master_rng.integers(0, 2**31 - 1))
+            sim_rng = np.random.default_rng(sim_seed)
+            # Simulate per-bin Pn/Ps under the model: alpha(x) = a + b*exp(-c*x)
+            # implies Pn(x)/Ps(x) = (1 - alpha(x)) * Dn/Ds. We fix Dn, Ds and totals.
+            num_bins = 10
+            bin_centers = (np.arange(num_bins) + 0.5) / num_bins
+            dn_total = 200
+            ds_total = 400
+            ps_per_bin = 30
+            gene_polys: list[tuple[float, str]] = []
+            for x, alpha_x in zip(bin_centers, true_a + true_b * np.exp(-true_c * bin_centers)):
+                # Expected ratio Pn/Ps at this bin
+                ratio = (1.0 - alpha_x) * dn_total / ds_total
+                expected_pn = ps_per_bin * ratio
+                pn_count = int(sim_rng.poisson(max(expected_pn, 0.0)))
+                gene_polys.extend([(float(x), "N")] * pn_count)
+                gene_polys.extend([(float(x), "S")] * ps_per_bin)
+
+            gene = PolymorphismData(
+                polymorphisms=gene_polys,
+                dn=dn_total,
+                ds=ds_total,
+                gene_id=f"sim{trial}",
+                ln=600.0,
+                ls=200.0,
+            )
+            try:
+                result = asymptotic_mk_test_aggregated(
+                    [gene],
+                    num_bins=num_bins,
+                    ci_method="bootstrap",
+                    ci_replicates=n_replicates,
+                    seed=sim_seed,
+                )
+            except (RuntimeError, ValueError):
+                continue
+            if result.ci_low <= true_alpha_at_1 <= result.ci_high:
+                n_inside += 1
+
+        coverage = n_inside / n_trials
+        # Loose check — bootstrap is approximate and the simulation has its own noise.
+        assert 0.7 <= coverage <= 1.0, (
+            f"Bootstrap CI coverage {coverage:.2f} outside expected range; "
+            f"true α(1)={true_alpha_at_1:.4f}"
+        )

@@ -110,6 +110,29 @@ Batch Analysis (Per-Gene)
    # Run imputed test separately for each gene
    mkado batch alignments/ -i ingroup -o outgroup --imputed --per-gene
 
+Bootstrap Confidence Intervals
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When ``--bootstrap N`` is set (with N > 0), the imputed test runs an
+additional case-resampling bootstrap to produce a 95% CI on alpha. Each
+replicate resamples the polymorphism list with replacement and re-runs
+the imputed MK algorithm; the 2.5/97.5 percentiles of the resulting
+alpha distribution are reported as ``alpha_CI_low`` / ``alpha_CI_high``.
+The omega decomposition CIs are derived from the alpha CI by analytical
+scaling (``omega_a_ci = alpha_ci * omega``), mirroring the asymptotic
+test.
+
+.. code-block:: bash
+
+   # Imputed test with 500-replicate bootstrap
+   mkado test alignment.fa -i ingroup -o outgroup --imputed --bootstrap 500
+
+   # Aggregated imputed batch with bootstrap
+   mkado batch alignments/ -i ingroup -o outgroup --imputed --bootstrap 200
+
+The legacy default (``--bootstrap 100``) computes the bootstrap; pass
+``--bootstrap 0`` to disable CI computation entirely.
+
 Output
 ------
 
@@ -125,9 +148,13 @@ The imputed test reports:
 - **omega, omega_a, omega_na**: dN/dS and the adaptive/non-adaptive
   decomposition (``omega_a = alpha * omega``) following
   `Gossmann, Keightley & Eyre-Walker 2012`_, applied to MK counts by
-  `Coronado-Zamora et al. 2019`_. Reported as point estimates only — the
-  imputed test does not currently bootstrap, so no CIs are produced.
-  See :doc:`omega` for the decomposition formula.
+  `Coronado-Zamora et al. 2019`_. See :doc:`omega` for the decomposition
+  formula.
+- **alpha_CI_low, alpha_CI_high**: 95% bootstrap CI on alpha (when
+  ``--bootstrap > 0``)
+- **omega_a_CI_low/high, omega_na_CI_low/high**: 95% CIs on the omega
+  decomposition, derived from the alpha CI scaled by omega
+- **ci_method**: ``"bootstrap"`` when CI was computed, ``None`` otherwise
 
 Example output (pretty format):
 
@@ -141,8 +168,11 @@ Example output (pretty format):
      Pn (neutral):  6.18
      Alpha:         0.5154
      p-value:       0.0891
+     Alpha 95% CI [bootstrap]: (0.3210, 0.7050)
      Sites:         Ln=576.00, Ls=195.00
      omega:         0.2539 (omega_a=0.1308, omega_na=0.1230)
+       omega_a 95% CI:  (0.0815, 0.1790)
+       omega_na 95% CI: (0.0749, 0.1724)
 
 Comparison with Other Methods
 -----------------------------

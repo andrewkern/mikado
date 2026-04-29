@@ -120,8 +120,7 @@ def create_volcano_plot(
     sig_fdr = (p_arr < fdr_threshold) & ~sig_bonf
     colors = np.where(sig_bonf, "#e74c3c", np.where(sig_fdr, "#e67e22", "#3498db"))
 
-    # Create scatter plot
-    scatter = ax.scatter(
+    ax.scatter(
         neg_log10_ni,
         neg_log10_p,
         c=colors,
@@ -259,10 +258,10 @@ def create_asymptotic_plot(
     x_curve = np.linspace(0.05, 1.0, 100)
     if result.model_type == "exponential":
         y_curve = result.fit_a + result.fit_b * np.exp(-result.fit_c * x_curve)
-        fit_label = f"Fit: a + b·e$^{{-cx}}$"
+        fit_label = "Fit: a + b·e$^{-cx}$"
     else:
         y_curve = result.fit_a + result.fit_b * x_curve
-        fit_label = f"Fit: a + b·x"
+        fit_label = "Fit: a + b·x"
 
     ax.plot(
         x_curve,
