@@ -50,7 +50,14 @@ class AggregatedSFS:
 
 @dataclass
 class AsymptoticMKResult:
-    """Results from an asymptotic McDonald-Kreitman test."""
+    """Results from an asymptotic McDonald-Kreitman test.
+
+    ``Pn_total`` and ``Ps_total`` follow the standard MK definition: ingroup
+    polymorphic sites whose derived allele causes a non-synonymous (Pn) or
+    synonymous (Ps) substitution. The asymptotic test uses the full SFS
+    with no ``min_frequency`` filter; frequency cutoffs apply only to the
+    ``alpha(x)`` curve fit, not to the SFS counts themselves.
+    """
 
     # Frequency bins and alpha estimates
     frequency_bins: list[float] = field(default_factory=list)
@@ -82,9 +89,10 @@ class AsymptoticMKResult:
     # Model type ("exponential" or "linear")
     model_type: str = "exponential"
 
-    # Total polymorphism counts (useful for aggregated results)
     pn_total: int = 0
+    """Total non-synonymous polymorphisms (sum across all SFS bins)."""
     ps_total: int = 0
+    """Total synonymous polymorphisms (sum across all SFS bins)."""
 
     def __str__(self) -> str:
         lines = [

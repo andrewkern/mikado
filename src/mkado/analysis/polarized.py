@@ -19,31 +19,48 @@ if TYPE_CHECKING:
 class PolarizedMKResult:
     """Results from a polarized McDonald-Kreitman test.
 
-    The polarized test uses a second outgroup to assign mutations to
-    specific lineages (ingroup or first outgroup).
+    The polarized test uses a second outgroup (``outgroup2``) to assign each
+    fixed difference and each ingroup polymorphism to one of two lineages —
+    the ingroup or the first outgroup — by majority rule on the inferred
+    ancestral state. Sites where the ancestral state cannot be determined
+    are reported under ``*_unpolarized``.
+
+    Pn and Ps count derived alleles segregating in the ingroup (subject to
+    ``min_frequency`` filtering, identical to the standard MK test) and
+    are split by lineage assignment.
     """
 
-    # Ingroup lineage counts
     dn_ingroup: int
+    """Non-synonymous fixed differences assigned to the ingroup lineage."""
     ds_ingroup: int
+    """Synonymous fixed differences assigned to the ingroup lineage."""
     pn_ingroup: int
+    """Non-synonymous polymorphisms whose derived allele arose on the ingroup lineage."""
     ps_ingroup: int
+    """Synonymous polymorphisms whose derived allele arose on the ingroup lineage."""
 
-    # Outgroup lineage counts
     dn_outgroup: int
+    """Non-synonymous fixed differences assigned to the first outgroup lineage."""
     ds_outgroup: int
+    """Synonymous fixed differences assigned to the first outgroup lineage."""
 
-    # Unpolarized counts (could not determine lineage)
     dn_unpolarized: int
+    """Non-synonymous fixed differences where lineage could not be determined."""
     ds_unpolarized: int
+    """Synonymous fixed differences where lineage could not be determined."""
     pn_unpolarized: int
+    """Non-synonymous polymorphisms where ancestral state could not be determined."""
     ps_unpolarized: int
+    """Synonymous polymorphisms where ancestral state could not be determined."""
 
-    # Statistics for ingroup lineage
     p_value_ingroup: float
+    """Fisher's exact test p-value on the ingroup-lineage 2x2 table."""
     ni_ingroup: float | None
+    """Neutrality Index for the ingroup lineage."""
     alpha_ingroup: float | None
+    """Proportion of adaptive substitutions on the ingroup lineage."""
     dos_ingroup: float | None
+    """Direction of Selection for the ingroup lineage."""
 
     def __str__(self) -> str:
         ni_str = f"{self.ni_ingroup:.4f}" if self.ni_ingroup is not None else "N/A"

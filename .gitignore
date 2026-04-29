@@ -1,6 +1,9 @@
 # Python-generated files
 __pycache__/
 *.py[oc]
+paper_review.txt
+review_features.md
+review_manuscript.md
 CLAUDE.md
 build/
 dist/

@@ -1,6 +1,11 @@
-"""Mikado: Modern Python implementation of the McDonald-Kreitman test toolkit."""
+"""MKado: Modern Python implementation of the McDonald-Kreitman test toolkit."""
 
-__version__ = "0.3.0"
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("mkado")
+except PackageNotFoundError:
+    __version__ = "0.0.0+unknown"
 
 from mkado.core.sequences import Sequence, SequenceSet
 from mkado.core.codons import GeneticCode

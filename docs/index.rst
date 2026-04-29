@@ -11,7 +11,7 @@ Features
 --------
 
 - **Standard MK test**: Classic 2x2 contingency table with Fisher's exact test
-- **Polarized MK test**: Uses a third outgroup to assign mutations to lineages
+- **Polarized MK test**: Uses a second outgroup to assign mutations to lineages
 - **Asymptotic MK test**: Frequency-bin alpha estimates with exponential extrapolation (`Messer & Petrov 2013`_)
 - **Imputed MK test**: Corrects for slightly deleterious mutations by imputation (`Murga-Moreno et al. 2022`_)
 - **Tarone-Greenland α_TG**: Weighted multi-gene estimator (`Stoletzki & Eyre-Walker 2011`_)

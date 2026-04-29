@@ -17,16 +17,37 @@ if TYPE_CHECKING:
 
 @dataclass
 class MKResult:
-    """Results from a McDonald-Kreitman test."""
+    """Results from a McDonald-Kreitman test.
 
-    dn: int  # Non-synonymous divergence (fixed differences)
-    ds: int  # Synonymous divergence (fixed differences)
-    pn: int  # Non-synonymous polymorphisms
-    ps: int  # Synonymous polymorphisms
-    p_value: float  # Fisher's exact test p-value
-    ni: float | None  # Neutrality Index
-    alpha: float | None  # Proportion of adaptive substitutions
-    dos: float | None  # Direction of Selection
+    Site counts follow the standard MK definitions:
+
+    - **Dn / Ds**: number of fixed differences between ingroup and outgroup
+      that change (Dn) or do not change (Ds) the encoded amino acid under
+      the supplied genetic code.
+    - **Pn / Ps**: number of ingroup polymorphic sites whose derived allele
+      causes a non-synonymous (Pn) or synonymous (Ps) substitution. Sites
+      are filtered by ``min_frequency`` (default ``0.0``); the
+      ``--no-singletons`` CLI flag sets this threshold to ``1/n``. When
+      ``pool_polymorphisms`` is true, polymorphic sites in the outgroup are
+      pooled into the ingroup counts.
+    """
+
+    dn: int
+    """Non-synonymous fixed differences."""
+    ds: int
+    """Synonymous fixed differences."""
+    pn: int
+    """Non-synonymous polymorphisms in the ingroup (after frequency filtering)."""
+    ps: int
+    """Synonymous polymorphisms in the ingroup (after frequency filtering)."""
+    p_value: float
+    """Fisher's exact test p-value on the 2x2 contingency table."""
+    ni: float | None
+    """Neutrality Index ``(Pn/Ps) / (Dn/Ds)``; ``None`` if any count is zero."""
+    alpha: float | None
+    """Proportion of adaptive substitutions ``1 - NI``."""
+    dos: float | None
+    """Direction of Selection ``Dn/(Dn+Ds) - Pn/(Pn+Ps)`` (Stoletzki & Eyre-Walker 2011)."""
 
     def __str__(self) -> str:
         ni_str = f"{self.ni:.4f}" if self.ni is not None else "N/A"
