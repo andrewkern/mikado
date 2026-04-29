@@ -5,7 +5,7 @@ from importlib.metadata import PackageNotFoundError, version
 try:
     __version__ = version("mkado")
 except PackageNotFoundError:
-    __version__ = "unknown"
+    __version__ = "0.0.0+unknown"
 
 from mkado.core.sequences import Sequence, SequenceSet
 from mkado.core.codons import GeneticCode

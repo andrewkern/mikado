@@ -49,17 +49,30 @@ def validate_path_not_flag(value: Path | None) -> Path | None:
     return value
 
 
+STDOUT_PATH = Path("-")
+
+OutputOption = Annotated[
+    Optional[Path],
+    typer.Option(
+        "--output",
+        "-O",
+        help="Write formatted results to this file (default: stdout). Use '-' for stdout.",
+        callback=validate_path_not_flag,
+    ),
+]
+
+
 def write_output(content: str, output_path: Path | None) -> None:
     """Write formatted result content to a file, or to stdout if no path given.
 
     A path of ``None`` or ``Path("-")`` means stdout (POSIX convention).
     """
-    if output_path is None or str(output_path) == "-":
+    if output_path is None or output_path == STDOUT_PATH:
         typer.echo(content)
         return
     text = content if content.endswith("\n") else content + "\n"
     output_path.write_text(text)
-    typer.echo(f"Output written to {output_path}", err=True)
+    typer.echo(f"Results saved to {output_path}", err=True)
 
 
 def _collect_gene_data(
@@ -362,15 +375,7 @@ def test(
             callback=validate_path_not_flag,
         ),
     ] = None,
-    output: Annotated[
-        Optional[Path],
-        typer.Option(
-            "--output",
-            "-O",
-            help="Write formatted result to this file (default: stdout). Use '-' for stdout.",
-            callback=validate_path_not_flag,
-        ),
-    ] = None,
+    output: OutputOption = None,
 ) -> None:
     """Run McDonald-Kreitman test on a single alignment.
 
@@ -814,15 +819,7 @@ def batch(
             callback=validate_path_not_flag,
         ),
     ] = None,
-    output: Annotated[
-        Optional[Path],
-        typer.Option(
-            "--output",
-            "-O",
-            help="Write formatted results to this file (default: stdout). Use '-' for stdout.",
-            callback=validate_path_not_flag,
-        ),
-    ] = None,
+    output: OutputOption = None,
 ) -> None:
     """Run MK test on multiple alignment files.
 
@@ -1460,15 +1457,7 @@ def vcf(
         bool,
         typer.Option("--verbose", help="Show warnings from htslib/VCF parsing"),
     ] = False,
-    output: Annotated[
-        Optional[Path],
-        typer.Option(
-            "--output",
-            "-O",
-            help="Write formatted results to this file (default: stdout). Use '-' for stdout.",
-            callback=validate_path_not_flag,
-        ),
-    ] = None,
+    output: OutputOption = None,
 ) -> None:
     """Run MK test from VCF + reference + GFF3 annotation.
 
