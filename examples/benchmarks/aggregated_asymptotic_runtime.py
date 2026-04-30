@@ -37,6 +37,7 @@ from pathlib import Path
 
 import numpy as np
 
+from mkado.analysis.alpha_tg import alpha_tg_from_gene_data
 from mkado.analysis.asymptotic import (
     PolymorphismData,
     asymptotic_mk_test_aggregated,
@@ -63,6 +64,24 @@ CSV_FIELDNAMES = (
     "ci_high",
     "num_bins",
     "ci_replicates",
+)
+
+ALPHA_TG_CSV_FIELDNAMES = (
+    "replicate_idx",
+    "n_genes",
+    "wall_time_seconds",
+    "alpha_tg",
+    "ci_low",
+    "ci_high",
+    "bootstrap_replicates",
+)
+
+SCALING_CSV_FIELDNAMES = (
+    "n_workers",
+    "rep_idx",
+    "extraction_seconds",
+    "asymptotic_seconds",
+    "total_seconds",
 )
 
 
@@ -224,11 +243,144 @@ def run_replicates(
     return rows
 
 
+def run_replicates_alpha_tg(
+    poly_data: list[PolymorphismData],
+    *,
+    n_genes: int,
+    n_replicates: int,
+    base_seed: int,
+    bootstrap_replicates: int,
+) -> list[dict]:
+    """Per-replicate Tarone-Greenland alpha on the same 1,000-gene samples.
+
+    Uses identical per-replicate seeds as ``run_replicates`` so each row in
+    this CSV pairs 1:1 with the four asymptotic rows for the same sample
+    -- the manuscript can show all five alpha estimators on a common axis.
+    """
+    n_total = len(poly_data)
+    if n_total < n_genes:
+        sys.exit(f"only {n_total} genes available; cannot sample {n_genes} without replacement")
+
+    rows: list[dict] = []
+    for replicate_idx in range(n_replicates):
+        seed = base_seed + replicate_idx
+        rng = np.random.default_rng(seed)
+        idx = rng.choice(n_total, size=n_genes, replace=False)
+        sample = [poly_data[i] for i in idx]
+
+        start = time.perf_counter()
+        result = alpha_tg_from_gene_data(
+            gene_data=sample,
+            bootstrap_replicates=bootstrap_replicates,
+            seed=seed,
+        )
+        wall = time.perf_counter() - start
+
+        rows.append(
+            {
+                "replicate_idx": replicate_idx,
+                "n_genes": n_genes,
+                "wall_time_seconds": wall,
+                "alpha_tg": result.alpha_tg,
+                "ci_low": result.ci_low,
+                "ci_high": result.ci_high,
+                "bootstrap_replicates": bootstrap_replicates,
+            }
+        )
+        if (replicate_idx + 1) % 10 == 0 or replicate_idx == n_replicates - 1:
+            logger.info(
+                "[alpha_tg] replicate %d/%d  alpha=%.4f  wall=%.3fs",
+                replicate_idx + 1,
+                n_replicates,
+                result.alpha_tg,
+                wall,
+            )
+    return rows
+
+
+def run_scaling_sweep(
+    *,
+    alignment_dir: Path,
+    ingroup_match: str,
+    outgroup_match: str,
+    cache_path: Path,
+    worker_counts: list[int],
+    n_reps: int,
+    n_genes: int,
+    n_replicates: int,
+    base_seed: int,
+    num_bins: int,
+) -> list[dict]:
+    """End-to-end pipeline timing across worker counts.
+
+    For each (n_workers, rep), deletes the cache, runs a fresh extraction,
+    and runs the full 4-cell asymptotic grid. Records extraction wall time,
+    asymptotic-runs wall time, and total -- so the manuscript can show how
+    the parallelizable upstream stage scales while the asymptotic stage
+    stays sequential.
+    """
+    rows: list[dict] = []
+    for n_workers in worker_counts:
+        for rep_idx in range(n_reps):
+            cache_path.unlink(missing_ok=True)
+            logger.info("[scaling] workers=%d rep=%d/%d", n_workers, rep_idx + 1, n_reps)
+            poly_data, extraction_seconds, _ = load_or_extract(
+                alignment_dir=alignment_dir,
+                ingroup_match=ingroup_match,
+                outgroup_match=outgroup_match,
+                cache_path=cache_path,
+                workers=n_workers,
+            )
+            asym_start = time.perf_counter()
+            for sfs_mode in ("at", "above"):
+                for ci_method in ("monte-carlo", "bootstrap"):
+                    run_replicates(
+                        poly_data,
+                        sfs_mode=sfs_mode,
+                        ci_method=ci_method,
+                        n_genes=n_genes,
+                        n_replicates=n_replicates,
+                        base_seed=base_seed,
+                        num_bins=num_bins,
+                    )
+            asymptotic_seconds = time.perf_counter() - asym_start
+            total_seconds = extraction_seconds + asymptotic_seconds
+            rows.append(
+                {
+                    "n_workers": n_workers,
+                    "rep_idx": rep_idx,
+                    "extraction_seconds": extraction_seconds,
+                    "asymptotic_seconds": asymptotic_seconds,
+                    "total_seconds": total_seconds,
+                }
+            )
+            logger.info(
+                "[scaling] workers=%d rep=%d  extract=%.1fs  asym=%.1fs  total=%.1fs",
+                n_workers,
+                rep_idx + 1,
+                extraction_seconds,
+                asymptotic_seconds,
+                total_seconds,
+            )
+    return rows
+
+
 def write_csv(rows: list[dict], path: Path, extraction_seconds: float) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="") as fh:
         fh.write(f"# extraction_seconds={extraction_seconds:.3f}\n")
         writer = csv.DictWriter(fh, fieldnames=CSV_FIELDNAMES)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(row)
+    logger.info("wrote %d rows to %s", len(rows), path)
+
+
+def write_simple_csv(rows: list[dict], path: Path, fieldnames: tuple[str, ...]) -> None:
+    """Write a CSV without the leading extraction_seconds comment row."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=fieldnames)
         writer.writeheader()
         for row in rows:
             writer.writerow(row)
@@ -242,12 +394,15 @@ def make_figure(
     n_genes: int,
     n_total_genes: int,
     workers: int,
+    alpha_tg_rows: list[dict] | None = None,
+    scaling_rows: list[dict] | None = None,
 ) -> None:
     import matplotlib.pyplot as plt
     import seaborn as sns
 
     sns.set_theme(style="darkgrid")
     palette = ["#2c3e50", "#e74c3c", "#3498db", "#e67e22"]
+    alpha_tg_color = "#27ae60"
 
     times = np.array([r["wall_time_seconds"] for r in rows])
     alphas = np.array([r["alpha_asymptotic"] for r in rows])
@@ -284,7 +439,62 @@ def make_figure(
         ax.set_xlabel("sfs_mode / ci_method", fontsize=12)
         ax.set_title(title, fontsize=13, fontweight="bold")
 
-    fig, (ax_time, ax_alpha) = plt.subplots(1, 2, figsize=(12, 5))
+    n_panels = 2 + (1 if scaling_rows else 0)
+    fig, axes = plt.subplots(1, n_panels, figsize=(6 * n_panels, 5))
+    axes_iter = iter(axes if n_panels > 1 else [axes])
+
+    if scaling_rows:
+        ax_scaling = next(axes_iter)
+        sc_workers = np.array([r["n_workers"] for r in scaling_rows], dtype=int)
+        sc_total = np.array([r["total_seconds"] for r in scaling_rows])
+        sc_extract = np.array([r["extraction_seconds"] for r in scaling_rows])
+        sc_asym = np.array([r["asymptotic_seconds"] for r in scaling_rows])
+        sc_order = sorted(set(sc_workers.tolist()))
+        pos_map = {w: i for i, w in enumerate(sc_order)}
+        positions = list(range(len(sc_order)))
+
+        ax_scaling.boxplot(
+            [sc_total[sc_workers == w] for w in sc_order],
+            positions=positions,
+            widths=0.5,
+            patch_artist=True,
+            boxprops={"facecolor": palette[0], "alpha": 0.4, "edgecolor": palette[0]},
+            medianprops={"color": "white", "linewidth": 1.5},
+            whiskerprops={"color": palette[0]},
+            capprops={"color": palette[0]},
+            showfliers=False,
+        )
+        sc_offsets = np.array([pos_map[w] for w in sc_workers], dtype=float)
+        jitter = np.random.default_rng(0).uniform(-0.08, 0.08, size=len(sc_offsets))
+        ax_scaling.scatter(
+            sc_offsets + jitter,
+            sc_extract,
+            color=palette[1],
+            edgecolor="white",
+            linewidth=0.4,
+            s=40,
+            label="extraction",
+            zorder=3,
+        )
+        ax_scaling.scatter(
+            sc_offsets + jitter,
+            sc_asym,
+            color=palette[2],
+            edgecolor="white",
+            linewidth=0.4,
+            s=40,
+            label="asymptotic runs",
+            zorder=3,
+        )
+        ax_scaling.set_xticks(positions)
+        ax_scaling.set_xticklabels([str(w) for w in sc_order])
+        ax_scaling.set_yscale("log")
+        ax_scaling.set_ylabel("End-to-end wall time (s, log scale)", fontsize=12)
+        ax_scaling.set_xlabel("Workers (extraction parallelism)", fontsize=12)
+        ax_scaling.set_title("Pipeline runtime vs worker count", fontsize=13, fontweight="bold")
+        ax_scaling.legend(loc="upper right", fontsize=9)
+
+    ax_time = next(axes_iter)
     _panel(
         ax_time,
         times,
@@ -292,12 +502,46 @@ def make_figure(
         title=f"Asymptotic MK aggregated runtime, {n_genes} random genes / replicate",
         log_y=True,
     )
+
+    ax_alpha = next(axes_iter)
     _panel(
         ax_alpha,
         alphas,
         ylabel=r"Asymptotic $\alpha$",
         title="Estimated asymptotic alpha",
     )
+    if alpha_tg_rows:
+        # Overlay alpha_TG point estimates at a fifth, slightly-offset x position.
+        tg_alphas = np.array([r["alpha_tg"] for r in alpha_tg_rows])
+        tg_x = np.full(len(tg_alphas), len(order))
+        ax_alpha.scatter(
+            tg_x + np.random.default_rng(0).uniform(-0.15, 0.15, size=len(tg_x)),
+            tg_alphas,
+            color=alpha_tg_color,
+            edgecolor="white",
+            linewidth=0.4,
+            s=30,
+            alpha=0.7,
+            zorder=3,
+            label=r"$\alpha_{TG}$",
+        )
+        # Boxplot for alpha_TG at the same x position.
+        ax_alpha.boxplot(
+            tg_alphas,
+            positions=[len(order)],
+            widths=0.5,
+            patch_artist=True,
+            boxprops={"facecolor": alpha_tg_color, "alpha": 0.4, "edgecolor": alpha_tg_color},
+            medianprops={"color": "white", "linewidth": 1.5},
+            whiskerprops={"color": alpha_tg_color},
+            capprops={"color": alpha_tg_color},
+            showfliers=False,
+        )
+        labels = list(order) + [r"$\alpha_{TG}$"]
+        ax_alpha.set_xticks(range(len(labels)))
+        ax_alpha.set_xticklabels(labels)
+        ax_alpha.set_xlabel("estimator / condition", fontsize=12)
+        ax_alpha.legend(loc="upper right", fontsize=9)
 
     fig.suptitle(
         (
@@ -348,6 +592,36 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--no-plot", action="store_true")
     parser.add_argument(
+        "--no-alpha-tg",
+        action="store_true",
+        help="Skip the per-replicate alpha_TG comparison run.",
+    )
+    parser.add_argument(
+        "--alpha-tg-bootstrap",
+        type=int,
+        default=200,
+        help=(
+            "Bootstrap replicates for alpha_TG CI per sample (default 200). "
+            "alpha_tg_from_gene_data's library default is 1000; 200 is plenty "
+            "for the manuscript figure and keeps the comparison cheap."
+        ),
+    )
+    parser.add_argument(
+        "--scaling",
+        action="store_true",
+        help=(
+            "Run the worker-count scaling sweep (end-to-end pipeline timing "
+            "at each --scaling-workers level, --scaling-reps reps each). "
+            "Adds an extra panel to the figure on the left."
+        ),
+    )
+    parser.add_argument(
+        "--scaling-workers",
+        default="8,16,32,64",
+        help="Comma-separated worker counts for the scaling sweep.",
+    )
+    parser.add_argument("--scaling-reps", type=int, default=3)
+    parser.add_argument(
         "--smoke",
         action="store_true",
         help=(
@@ -362,9 +636,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         args.n_genes = 3
         args.n_replicates = 2
         args.workers = 2
+        args.alpha_tg_bootstrap = 50
+        args.scaling_workers = "1,2"
+        args.scaling_reps = 2
         args.cache = DEFAULT_BENCH_DIR / "cache" / "smoke_poly_data.pkl"
         args.csv = DEFAULT_BENCH_DIR / "results" / "smoke_runtime.csv"
         args.plot = DEFAULT_BENCH_DIR / "figures" / "smoke_runtime.png"
+
+    args.scaling_workers_list = [int(w) for w in args.scaling_workers.split(",") if w.strip()]
     return args
 
 
@@ -409,7 +688,52 @@ def main(argv: list[str] | None = None) -> None:
                 )
             )
 
+    alpha_tg_rows: list[dict] = []
+    if not args.no_alpha_tg:
+        alpha_tg_rows = run_replicates_alpha_tg(
+            poly_data,
+            n_genes=args.n_genes,
+            n_replicates=args.n_replicates,
+            base_seed=args.seed,
+            bootstrap_replicates=args.alpha_tg_bootstrap,
+        )
+
+    scaling_rows: list[dict] = []
+    if args.scaling:
+        # The sweep clobbers the cache for each (workers, rep) run -- save
+        # the current cache aside so the post-sweep CSV/figure work above
+        # has its data, then restore it after the sweep.
+        if args.cache.exists():
+            saved_cache = args.cache.with_suffix(args.cache.suffix + ".saved")
+            args.cache.rename(saved_cache)
+        else:
+            saved_cache = None
+        try:
+            scaling_rows = run_scaling_sweep(
+                alignment_dir=args.alignments,
+                ingroup_match=args.ingroup_match,
+                outgroup_match=args.outgroup_match,
+                cache_path=args.cache,
+                worker_counts=args.scaling_workers_list,
+                n_reps=args.scaling_reps,
+                n_genes=args.n_genes,
+                n_replicates=args.n_replicates,
+                base_seed=args.seed,
+                num_bins=args.num_bins,
+            )
+        finally:
+            args.cache.unlink(missing_ok=True)
+            if saved_cache is not None:
+                saved_cache.rename(args.cache)
+
     write_csv(rows, args.csv, extraction_seconds)
+    if alpha_tg_rows:
+        alpha_tg_path = args.csv.with_name(args.csv.stem + "_alpha_tg.csv")
+        write_simple_csv(alpha_tg_rows, alpha_tg_path, ALPHA_TG_CSV_FIELDNAMES)
+    if scaling_rows:
+        scaling_path = args.csv.with_name(args.csv.stem + "_scaling.csv")
+        write_simple_csv(scaling_rows, scaling_path, SCALING_CSV_FIELDNAMES)
+
     if not args.no_plot:
         make_figure(
             rows,
@@ -418,6 +742,8 @@ def main(argv: list[str] | None = None) -> None:
             n_genes=args.n_genes,
             n_total_genes=len(poly_data),
             workers=extraction_workers,
+            alpha_tg_rows=alpha_tg_rows or None,
+            scaling_rows=scaling_rows or None,
         )
 
 
