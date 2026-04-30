@@ -173,6 +173,7 @@ def run_replicates(
     base_seed: int,
     num_bins: int,
     workers: int = 1,
+    bootstrap_replicates: int = 100,
 ) -> list[dict]:
     """Sample n_genes without replacement and time the aggregated test.
 
@@ -184,9 +185,9 @@ def run_replicates(
     if n_total < n_genes:
         sys.exit(f"only {n_total} genes available; cannot sample {n_genes} without replacement")
 
-    # Realistic CLI defaults: MC samples params from a covariance matrix
-    # (cheap, ~10000x); bootstrap refits per replicate (~100x).
-    ci_replicates = 10000 if ci_method == "monte-carlo" else 100
+    # MC samples params from a covariance matrix (cheap, ~10000x by convention);
+    # bootstrap refits per replicate, so its replicate count is the user-tunable knob.
+    ci_replicates = 10000 if ci_method == "monte-carlo" else bootstrap_replicates
 
     rows: list[dict] = []
     for replicate_idx in range(n_replicates):
@@ -246,6 +247,7 @@ def run_scaling_sweep(
     n_replicates: int,
     base_seed: int,
     num_bins: int,
+    bootstrap_replicates: int = 100,
 ) -> list[dict]:
     """End-to-end pipeline timing across worker counts.
 
@@ -279,6 +281,7 @@ def run_scaling_sweep(
                         base_seed=base_seed,
                         num_bins=num_bins,
                         workers=n_workers,
+                        bootstrap_replicates=bootstrap_replicates,
                     )
             asymptotic_seconds = time.perf_counter() - asym_start
             total_seconds = extraction_seconds + asymptotic_seconds
@@ -385,45 +388,30 @@ def make_figure(
         sc_extract = np.array([r["extraction_seconds"] for r in scaling_rows])
         sc_asym = np.array([r["asymptotic_seconds"] for r in scaling_rows])
         sc_order = sorted(set(sc_workers.tolist()))
-        pos_map = {w: i for i, w in enumerate(sc_order)}
-        positions = list(range(len(sc_order)))
 
-        ax_scaling.boxplot(
-            [sc_total[sc_workers == w] for w in sc_order],
-            positions=positions,
-            widths=0.5,
-            patch_artist=True,
-            boxprops={"facecolor": palette[0], "alpha": 0.4, "edgecolor": palette[0]},
-            medianprops={"color": "white", "linewidth": 1.5},
-            whiskerprops={"color": palette[0]},
-            capprops={"color": palette[0]},
-            showfliers=False,
-        )
-        sc_offsets = np.array([pos_map[w] for w in sc_workers], dtype=float)
-        jitter = np.random.default_rng(0).uniform(-0.08, 0.08, size=len(sc_offsets))
-        ax_scaling.scatter(
-            sc_offsets + jitter,
-            sc_extract,
-            color=palette[1],
-            edgecolor="white",
-            linewidth=0.4,
-            s=40,
-            label="extraction",
-            zorder=3,
-        )
-        ax_scaling.scatter(
-            sc_offsets + jitter,
-            sc_asym,
-            color=palette[2],
-            edgecolor="white",
-            linewidth=0.4,
-            s=40,
-            label="asymptotic runs",
-            zorder=3,
-        )
-        ax_scaling.set_xticks(positions)
+        # Median across reps per worker count -- with one rep this just plots
+        # the single value; with three the line tracks the typical run cost.
+        def _median_at(values: np.ndarray, w: int) -> float:
+            return float(np.median(values[sc_workers == w]))
+
+        median_total = [_median_at(sc_total, w) for w in sc_order]
+        median_extract = [_median_at(sc_extract, w) for w in sc_order]
+        median_asym = [_median_at(sc_asym, w) for w in sc_order]
+
+        line_specs = [
+            ("total", median_total, palette[0]),
+            ("extraction", median_extract, palette[1]),
+            ("asymptotic runs", median_asym, palette[2]),
+        ]
+        for label, ys, color in line_specs:
+            ax_scaling.plot(
+                sc_order, ys, color=color, marker="o", linewidth=2, markersize=7, label=label
+            )
+
+        ax_scaling.set_xticks(sc_order)
         ax_scaling.set_xticklabels([str(w) for w in sc_order])
         ax_scaling.set_yscale("log")
+        ax_scaling.set_xscale("log", base=2)
         ax_scaling.set_ylabel("End-to-end wall time (s, log scale)", fontsize=12)
         ax_scaling.set_xlabel("Workers (extraction parallelism)", fontsize=12)
         ax_scaling.set_title("Pipeline runtime vs worker count", fontsize=13, fontweight="bold")
@@ -475,6 +463,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--outgroup-match", default="Pan_troglodytes")
     parser.add_argument("--n-genes", type=int, default=1000)
     parser.add_argument("--n-replicates", type=int, default=100)
+    parser.add_argument(
+        "--bootstrap-replicates",
+        type=int,
+        default=100,
+        help=(
+            "Bootstrap replicates per CI computation when ci_method=bootstrap "
+            "(default 100). Higher values give tighter CIs at proportionally "
+            "higher per-call cost."
+        ),
+    )
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--num-bins", type=int, default=20)
     parser.add_argument("--seed", type=int, default=42)
@@ -573,6 +571,7 @@ def main(argv: list[str] | None = None) -> None:
                     base_seed=args.seed,
                     num_bins=args.num_bins,
                     workers=args.workers,
+                    bootstrap_replicates=args.bootstrap_replicates,
                 )
             )
 
@@ -598,6 +597,7 @@ def main(argv: list[str] | None = None) -> None:
                 n_replicates=args.n_replicates,
                 base_seed=args.seed,
                 num_bins=args.num_bins,
+                bootstrap_replicates=args.bootstrap_replicates,
             )
         finally:
             args.cache.unlink(missing_ok=True)
