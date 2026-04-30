@@ -540,6 +540,68 @@ If your starting point is a variant calling pipeline (e.g., GATK, bcftools) rath
 
 See :doc:`vcf-input` for the full guide, including data preparation, gene filtering, plotting, and all available options.
 
+Working with Ortholog Alignments (OrthoMaM-style projection)
+------------------------------------------------------------
+
+A common scenario when working with non-model organisms is that one
+has codon-aligned ortholog sets from a database such as `OrthoMaM
+<https://orthomam.mbb.cnrs.fr>`_ (mammals), Ensembl Compara, or a
+custom alignment, plus a separate population-genetic VCF for the
+ingroup species. To use these together with MKado, the polymorphism
+data must be projected onto the alignment columns. The procedure
+below mirrors the one we used to assemble the 12,437-gene human
+benchmark dataset and is general enough to apply to any codon-level
+ortholog alignment plus a coordinate-resolved VCF.
+
+For each gene, do the following:
+
+1. **Reconstruct the canonical CDS** for the ingroup species from
+   the reference genome (FASTA) and exon set (GTF/GFF3), so you
+   have a position-by-position mapping from CDS index to genomic
+   coordinate. For minus-strand genes, reverse-complement as you
+   build the CDS.
+
+2. **Match the alignment to the CDS.** Strip gaps from the ingroup
+   row of the ortholog alignment, then look for it as a substring
+   of the reconstructed canonical CDS. The position of the match
+   gives you the alignment-column to CDS-position
+   correspondence. Genes whose alignments do not match the
+   reference CDS exactly (commonly the result of independent
+   curation between alignment database and reference) should be
+   skipped.
+
+3. **Extract overlapping variants from the VCF** using the genomic
+   coordinates from step 1 for the alignment-retained CDS
+   positions. Verify that the VCF reference allele matches the
+   genomic reference; for minus-strand genes, complement the VCF
+   alleles to match the CDS orientation.
+
+4. **Build per-haplotype sequences.** From the phased VCF
+   genotypes, write out one CDS sequence per haplotype with
+   variants substituted in. This step yields *2N* (or *N*, for
+   haploid samples) haplotype CDS sequences over the alignment-
+   retained positions.
+
+5. **Re-gap to the alignment.** Insert the gap structure of the
+   ortholog alignment into each haplotype sequence, so that all
+   haplotypes are codon-aligned to one another and to the outgroup
+   sequences from the alignment. Outgroup sequences are taken
+   directly from the alignment.
+
+The output of this pipeline is a per-gene multi-species FASTA file
+whose sequences are codon-aligned, with the ingroup haplotypes
+filterable by sample-name pattern and the outgroup species
+filterable separately---i.e., exactly the input format
+``mkado batch`` expects.
+
+Indels in the alignment are preserved (they remain as gap
+characters in the output FASTA). Multi-transcript genes are
+reduced to the canonical CDS chosen by the alignment database;
+alternative transcripts are not analysed separately. The script
+we used for the human benchmark dataset
+(``data/build_mk_dataset.py`` in the source repository) can serve
+as a starting point for adapting this to other species.
+
 Next Steps
 ----------
 

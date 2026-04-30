@@ -18,6 +18,27 @@ To process all alignment files in a directory:
 
 This scans for FASTA files (``*.fa``, ``*.fasta``, ``*.fna``) and runs the MK test on each.
 
+Per-gene vs Aggregated Modes
+----------------------------
+
+Tests that estimate a single α across many genes (asymptotic MK, imputed MK, Tarone-Greenland α_TG) accept ``--aggregate`` and ``--per-gene``:
+
+- ``--aggregate`` (default for these tests): pool polymorphism and divergence counts across **all** input genes, then fit / compute α once. This is the recommended mode for the asymptotic MK test, where per-gene SFS data are too sparse to fit reliably; it also matches the regime in which asymptotic MK has been validated (see `Murga-Moreno et al. 2022`_).
+
+- ``--per-gene``: run a separate test on each gene and report one α per gene. Useful when you want gene-by-gene point estimates (with the caveat that per-gene asymptotic estimates are noisy).
+
+The standard MK test is naturally per-gene and ignores ``--aggregate``; ``mkado batch`` always reports one row per gene for the standard test, plus aggregated counts in the summary.
+
+.. code-block:: bash
+
+   # Aggregated asymptotic MK (default)
+   mkado batch alignments/ -i species1 -o species2 -a
+
+   # Per-gene asymptotic MK (one α per gene)
+   mkado batch alignments/ -i species1 -o species2 -a --per-gene
+
+.. _Murga-Moreno et al. 2022: https://doi.org/10.1093/g3journal/jkac206
+
 File Organization
 -----------------
 
