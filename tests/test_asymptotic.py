@@ -749,3 +749,88 @@ class TestSfsMode:
         assert result.ci_method == "bootstrap"
         assert result.ci_low <= result.ci_high
         assert result.ci_low <= result.alpha_asymptotic <= result.ci_high
+
+
+class TestBootstrapCiWorkers:
+    """Tests for the ``workers`` parameter on ``_compute_ci_bootstrap``.
+
+    The parallelization preserves determinism by pre-generating all sample
+    arrays serially in the main thread and only dispatching the rebin +
+    refit + evaluate work; ``ThreadPoolExecutor.map`` yields in submission
+    order, so the bootstrap_alphas list is byte-identical across worker
+    counts for the same seed.
+    """
+
+    def test_aggregated_workers_default_is_1(self) -> None:
+        """No ``workers`` argument keeps the existing single-threaded path."""
+        gene_data = _make_aggregated_gene_data(num_genes=15, seed=10)
+        # workers=1 should match the no-arg call exactly.
+        r_default = asymptotic_mk_test_aggregated(
+            gene_data,
+            num_bins=10,
+            ci_method="bootstrap",
+            ci_replicates=100,
+            seed=42,
+        )
+        r_explicit_one = asymptotic_mk_test_aggregated(
+            gene_data,
+            num_bins=10,
+            ci_method="bootstrap",
+            ci_replicates=100,
+            seed=42,
+            workers=1,
+        )
+        assert r_default.ci_low == r_explicit_one.ci_low
+        assert r_default.ci_high == r_explicit_one.ci_high
+
+    def test_aggregated_bootstrap_ci_invariant_to_workers(self) -> None:
+        """Same seed + different worker counts -> identical CI."""
+        gene_data = _make_aggregated_gene_data(num_genes=30, seed=11)
+        cis: list[tuple[float, float]] = []
+        for workers in (1, 2, 4):
+            result = asymptotic_mk_test_aggregated(
+                gene_data,
+                num_bins=10,
+                ci_method="bootstrap",
+                ci_replicates=200,
+                seed=42,
+                workers=workers,
+            )
+            cis.append((result.ci_low, result.ci_high))
+        # All CI values must be identical across worker counts.
+        assert cis[0] == cis[1] == cis[2]
+
+    def test_aggregated_workers_invalid_raises(self) -> None:
+        """Zero or negative worker counts are rejected."""
+        gene_data = _make_aggregated_gene_data(num_genes=10, seed=12)
+        with pytest.raises(ValueError):
+            asymptotic_mk_test_aggregated(
+                gene_data,
+                num_bins=10,
+                ci_method="bootstrap",
+                ci_replicates=50,
+                seed=42,
+                workers=0,
+            )
+
+    def test_single_gene_threads_workers_through(self, tmp_path: Path) -> None:
+        """The single-gene entry point also accepts ``workers`` and respects it.
+
+        Per-gene CIs go through the same _compute_ci_bootstrap; workers=N
+        should produce the same CI as workers=1 for the same input.
+        """
+        ingroup = tmp_path / "in.fa"
+        ingroup.write_text(
+            ">seq1\nATGTTTGCAGCAGCAGCAGCAGCA\n"
+            ">seq2\nATGTTCGCAGCAGCAGCAGCAGCA\n"
+            ">seq3\nATGTTTGCAGCAGCAGCAGCAGCA\n"
+            ">seq4\nATGTTAGCAGCAGCAGCAGCAGCA\n"
+            ">seq5\nATGTTTGCAGCAGCAGCAGCAGCA\n"
+        )
+        outgroup = tmp_path / "out.fa"
+        outgroup.write_text(">out\nATGTTGGCAGCAGCAGCAGCAGCA\n")
+
+        r_one = asymptotic_mk_test(ingroup=ingroup, outgroup=outgroup, num_bins=5, workers=1)
+        r_four = asymptotic_mk_test(ingroup=ingroup, outgroup=outgroup, num_bins=5, workers=4)
+        assert r_one.ci_low == r_four.ci_low
+        assert r_one.ci_high == r_four.ci_high
