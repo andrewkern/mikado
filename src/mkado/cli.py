@@ -298,11 +298,9 @@ app = typer.Typer(
     name="mkado",
     help="MKado 御門: McDonald-Kreitman test toolkit.\n\n"
     "A modern Python implementation for detecting selection using "
-    "the McDonald-Kreitman test and related methods.\n\n"
-    "Shell completion: --install-completion sets up tab completion for "
-    "your shell (bash/zsh/fish/powershell); --show-completion prints the "
-    "completion script without installing it.",
+    "the McDonald-Kreitman test and related methods.",
     no_args_is_help=True,
+    add_completion=False,
 )
 
 
