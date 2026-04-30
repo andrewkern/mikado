@@ -17,3 +17,6 @@ wheels/
 examples/benchmarks/results/
 examples/benchmarks/figures/
 examples/benchmarks/cache/
+
+# Manuscript repo (cloned locally, tracked separately)
+mkado-paper/
