@@ -71,27 +71,3 @@ After installation, verify it works:
    mkado --help
 
 You should see the help output listing available commands.
-
-Shell Completion
-----------------
-
-MKado ships with `Typer <https://typer.tiangolo.com>`_'s built-in shell
-completion. Two options on the umbrella ``mkado`` command let you
-configure it:
-
-.. code-block:: bash
-
-   # Install completion for your current shell (bash, zsh, fish, powershell)
-   mkado --install-completion
-
-   # Print the completion script without installing it
-   mkado --show-completion
-
-Restart your shell after installing.
-
-.. note::
-
-   Completion may be slow on some systems because each completion
-   request loads the full ``mkado`` Python entry point. If you find
-   the lag distracting, simply leave completion uninstalled---it does
-   not affect any other behaviour.
