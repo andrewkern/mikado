@@ -6,6 +6,7 @@ Based on Messer & Petrov (2013) PNAS.
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
@@ -356,6 +357,95 @@ def _compute_ci_monte_carlo(
     return (ci_low, ci_high)
 
 
+def _bootstrap_one_replicate(
+    sample: np.ndarray,
+    bin_idx: np.ndarray,
+    is_n: np.ndarray,
+    num_bins: int,
+    sfs_mode: str,
+    ds: int,
+    dn: int,
+    bin_in_window: np.ndarray,
+    bin_centers: np.ndarray,
+    model_func: Callable[..., np.ndarray],
+    p0: list[float],
+    bounds: tuple[list[float], list[float]],
+) -> float | None:
+    """Resample, rebin, refit α(x), evaluate at x=1. Returns None on failure."""
+    sample_bins = bin_idx[sample]
+    sample_n = is_n[sample]
+    boot_pn = np.bincount(sample_bins[sample_n], minlength=num_bins).astype(float)
+    boot_ps = np.bincount(sample_bins[~sample_n], minlength=num_bins).astype(float)
+    boot_pn, boot_ps = _apply_sfs_mode(boot_pn, boot_ps, sfs_mode)
+
+    # Per-bin alpha where boot_ps > 0 and inside the fitting window.
+    valid = (boot_ps > 0) & bin_in_window
+    if valid.sum() < 3:
+        # Fall back to full range if cutoffs are too restrictive (mirror point-estimate path).
+        valid = boot_ps > 0
+        if valid.sum() < 3:
+            return None
+    ratio = (ds / dn) * (boot_pn[valid] / boot_ps[valid])
+    boot_alphas = 1.0 - ratio
+    boot_x = bin_centers[valid]
+
+    try:
+        popt_boot, _ = optimize.curve_fit(
+            model_func,
+            boot_x,
+            boot_alphas,
+            p0=p0,
+            bounds=bounds,
+            maxfev=5000,
+        )
+        alpha_at_1 = float(model_func(np.array([1.0]), *popt_boot)[0])
+        if np.isfinite(alpha_at_1):
+            return alpha_at_1
+    except (RuntimeError, ValueError):
+        pass
+    return None
+
+
+def _bootstrap_batch(args: tuple) -> list[float | None]:
+    """Process a batch of bootstrap samples in one worker, returning a result list.
+
+    Pickling shared state once per batch (rather than once per sample) is the
+    point of batching: with ``len(samples_chunk) ≈ n_replicates / workers``,
+    the per-task pickle cost is amortized across many replicates.
+    """
+    (
+        samples_chunk,
+        bin_idx,
+        is_n,
+        num_bins,
+        sfs_mode,
+        ds,
+        dn,
+        bin_in_window,
+        bin_centers,
+        model_func,
+        p0,
+        bounds,
+    ) = args
+    return [
+        _bootstrap_one_replicate(
+            s,
+            bin_idx,
+            is_n,
+            num_bins,
+            sfs_mode,
+            ds,
+            dn,
+            bin_in_window,
+            bin_centers,
+            model_func,
+            p0,
+            bounds,
+        )
+        for s in samples_chunk
+    ]
+
+
 def _compute_ci_bootstrap(
     pooled_polymorphisms: list[tuple[float, str]],
     dn: int,
@@ -371,6 +461,7 @@ def _compute_ci_bootstrap(
     n_replicates: int = 100,
     seed: int = 42,
     sfs_mode: str = "at",
+    workers: int = 1,
 ) -> tuple[float, float]:
     """Compute CI by case-resampling the pooled polymorphism list.
 
@@ -380,7 +471,20 @@ def _compute_ci_bootstrap(
     where the fit fails or fewer than 3 valid bins remain are dropped. If
     fewer than half of the replicates succeed, the CI degenerates to the
     point estimate.
+
+    With ``workers > 1`` the per-replicate work is dispatched to a
+    ``ProcessPoolExecutor`` in batches of ``n_replicates // workers``.
+    Threads were tried first but ``scipy.optimize.curve_fit`` runs the
+    Levenberg-Marquardt iteration in Python (releasing the GIL only inside
+    individual numpy ops), so threading gives no speedup on these small
+    fits. Processes pickle once per batch — fine because
+    ``n_replicates >> workers``. Determinism is preserved: sample arrays
+    are generated serially before dispatch, and ``np.percentile`` is
+    order-invariant.
     """
+    if workers < 1:
+        raise ValueError(f"workers must be >= 1, got {workers}")
+
     n = len(pooled_polymorphisms)
     if n == 0 or dn == 0 or ds == 0 or n_replicates <= 0:
         return (point_estimate, point_estimate)
@@ -397,40 +501,55 @@ def _compute_ci_bootstrap(
     low_cut, high_cut = frequency_cutoffs
     bin_in_window = (bin_centers >= low_cut) & (bin_centers <= high_cut)
 
-    bootstrap_alphas: list[float] = []
-    for _ in range(n_replicates):
-        sample = rng.integers(0, n, size=n)
-        sample_bins = bin_idx[sample]
-        sample_n = is_n[sample]
-        boot_pn = np.bincount(sample_bins[sample_n], minlength=num_bins).astype(float)
-        boot_ps = np.bincount(sample_bins[~sample_n], minlength=num_bins).astype(float)
-        boot_pn, boot_ps = _apply_sfs_mode(boot_pn, boot_ps, sfs_mode)
+    # Pre-generate sample arrays serially so the RNG is consumed deterministically;
+    # parallel dispatch must not depend on worker scheduling for reproducibility.
+    samples = [rng.integers(0, n, size=n) for _ in range(n_replicates)]
 
-        # Per-bin alpha where boot_ps > 0 and inside the fitting window.
-        valid = (boot_ps > 0) & bin_in_window
-        if valid.sum() < 3:
-            # Fall back to full range if cutoffs are too restrictive (mirror point-estimate path).
-            valid = boot_ps > 0
-            if valid.sum() < 3:
-                continue
-        ratio = (ds / dn) * (boot_pn[valid] / boot_ps[valid])
-        boot_alphas = 1.0 - ratio
-        boot_x = bin_centers[valid]
-
-        try:
-            popt_boot, _ = optimize.curve_fit(
+    if workers == 1:
+        replicate_results = [
+            _bootstrap_one_replicate(
+                s,
+                bin_idx,
+                is_n,
+                num_bins,
+                sfs_mode,
+                ds,
+                dn,
+                bin_in_window,
+                bin_centers,
                 model_func,
-                boot_x,
-                boot_alphas,
-                p0=p0,
-                bounds=bounds,
-                maxfev=5000,
+                p0,
+                bounds,
             )
-            alpha_at_1 = float(model_func(np.array([1.0]), *popt_boot)[0])
-            if np.isfinite(alpha_at_1):
-                bootstrap_alphas.append(alpha_at_1)
-        except (RuntimeError, ValueError):
-            continue
+            for s in samples
+        ]
+    else:
+        # Round-robin chunks so each worker gets a similar mix of samples;
+        # the SET of returned alphas is invariant to chunking, so np.percentile
+        # gives byte-identical CI bounds regardless of worker count.
+        chunks = [samples[i::workers] for i in range(workers)]
+        batch_args = [
+            (
+                chunk,
+                bin_idx,
+                is_n,
+                num_bins,
+                sfs_mode,
+                ds,
+                dn,
+                bin_in_window,
+                bin_centers,
+                model_func,
+                p0,
+                bounds,
+            )
+            for chunk in chunks
+        ]
+        with ProcessPoolExecutor(max_workers=workers) as pool:
+            chunk_results = list(pool.map(_bootstrap_batch, batch_args))
+        replicate_results = [r for chunk in chunk_results for r in chunk]
+
+    bootstrap_alphas: list[float] = [r for r in replicate_results if r is not None]
 
     if len(bootstrap_alphas) < n_replicates // 2:
         logger.debug(
@@ -651,6 +770,7 @@ def asymptotic_mk_test_aggregated(
     ci_method: str = "monte-carlo",
     seed: int = 42,
     sfs_mode: str = "at",
+    workers: int = 1,
 ) -> AsymptoticMKResult:
     """Genome-wide asymptotic MK test on aggregated data.
 
@@ -873,6 +993,7 @@ def asymptotic_mk_test_aggregated(
                 n_replicates=ci_replicates,
                 seed=seed,
                 sfs_mode=sfs_mode,
+                workers=workers,
             )
         else:
             ci_low_lin, ci_high_lin = _compute_ci_bootstrap(
@@ -890,6 +1011,7 @@ def asymptotic_mk_test_aggregated(
                 n_replicates=ci_replicates,
                 seed=seed,
                 sfs_mode=sfs_mode,
+                workers=workers,
             )
 
     if use_exponential:
@@ -946,6 +1068,7 @@ def asymptotic_mk_test(
     bootstrap_replicates: int = 100,
     pool_polymorphisms: bool = False,
     sfs_mode: str = "at",
+    workers: int = 1,
 ) -> AsymptoticMKResult:
     """Perform the asymptotic McDonald-Kreitman test.
 
@@ -1151,6 +1274,7 @@ def asymptotic_mk_test(
         n_replicates=bootstrap_replicates,
         seed=42,
         sfs_mode=sfs_mode,
+        workers=workers,
     )
 
     result = AsymptoticMKResult(

@@ -388,6 +388,19 @@ def test(
     ] = 100,
     ci_method: CIMethodOption = "monte-carlo",
     sfs_mode: SfsModeOption = "at",
+    workers: Annotated[
+        int,
+        typer.Option(
+            "--workers",
+            "-w",
+            min=0,
+            help=(
+                "Parallel workers for the bootstrap CI inner loop "
+                "(0=auto, 1=sequential). Only meaningful for --asymptotic "
+                "with --ci-method bootstrap; ignored otherwise."
+            ),
+        ),
+    ] = 1,
     # === Common options ===
     output_format: Annotated[
         str,
@@ -594,6 +607,7 @@ def test(
                 pool_polymorphisms=pool_polymorphisms,
                 genetic_code=genetic_code,
                 sfs_mode=sfs_mode,
+                workers=get_worker_count(workers, max(bootstrap, 1)),
             )
         elif use_imputed:
             from mkado.analysis.asymptotic import extract_polymorphism_data
@@ -677,6 +691,7 @@ def test(
                 pool_polymorphisms=pool_polymorphisms,
                 genetic_code=genetic_code,
                 sfs_mode=sfs_mode,
+                workers=get_worker_count(workers, max(bootstrap, 1)),
             )
         elif use_imputed:
             from mkado.analysis.asymptotic import extract_polymorphism_data
@@ -1104,6 +1119,7 @@ def batch(
                     frequency_cutoffs=frequency_cutoffs,
                     ci_method=ci_method,
                     sfs_mode=sfs_mode,
+                    workers=num_workers,
                 )
                 write_output(format_result(result, fmt), output)
 
@@ -1293,6 +1309,7 @@ def batch(
                     frequency_cutoffs=frequency_cutoffs,
                     ci_method=ci_method,
                     sfs_mode=sfs_mode,
+                    workers=num_workers,
                 )
                 write_output(format_result(result, fmt), output)
 
@@ -1782,6 +1799,7 @@ def vcf(
                 frequency_cutoffs=frequency_cutoffs,
                 ci_method=ci_method,
                 sfs_mode=sfs_mode,
+                workers=num_workers,
             )
             write_output(format_result(result, fmt), output)
             if plot_asymptotic:
