@@ -29,19 +29,11 @@ across all genes in the input directory, is cached to disk, and is
 is recorded in the CSV header (`# extraction_seconds=...`) and printed
 on the figure caption, so the cost composition is unambiguous.
 
-In addition to the asymptotic 2x2 grid, the script runs a per-replicate
-**Tarone-Greenland α (`α_TG`)** estimate on the same 1,000-gene samples
-(via `mkado.analysis.alpha_tg.alpha_tg_from_gene_data`). The α_TG point
-estimate appears as a fifth box on the alpha panel of the figure, with
-its own CSV (`*_alpha_tg.csv`) for the per-replicate point estimate and
-bootstrap CI. Disable with `--no-alpha-tg`.
-
 The `--scaling` flag adds a **worker-count sweep** to the run: at each
 worker count (default `8,16,32,64`), the script runs the full pipeline
 (fresh extraction + 400 timed asymptotic runs) `--scaling-reps` times
-(default 3). This produces a third figure panel showing how the
-parallelizable extraction stage scales with workers while the
-sequential asymptotic stage stays flat.
+(default 3). This produces a third figure panel showing how extraction
+parallelism and bootstrap-CI parallelism each scale with workers.
 
 ### Inputs
 
@@ -59,16 +51,13 @@ sequential asymptotic stage stays flat.
   `replicate_idx, sfs_mode, ci_method, n_genes, wall_time_seconds,
   alpha_asymptotic, ci_low, ci_high, num_bins, ci_replicates`. Header
   comment line records the one-time extraction wall time.
-- `results/aggregated_asymptotic_runtime_alpha_tg.csv` — per-replicate
-  Tarone-Greenland α point estimates and bootstrap CIs on the same
-  1,000-gene samples used for the asymptotic grid.
 - `results/aggregated_asymptotic_runtime_scaling.csv` — only when
   `--scaling` is passed: end-to-end pipeline timings at each worker
   count, broken down into extraction and asymptotic-runs phases.
 - `figures/aggregated_asymptotic_runtime.png` — two-panel boxplot of
   wall time (log-scale y) and asymptotic alpha across the four
-  conditions, with α_TG as a fifth box on the alpha panel. Adds a
-  scaling panel on the left when `--scaling` data is present.
+  conditions. Adds a scaling panel on the left when `--scaling` data
+  is present.
 - `cache/human_mk_poly_data.pkl` — pickled extraction output. Re-runs
   reuse it; delete it to force a re-extract.
 
@@ -82,8 +71,7 @@ Full benchmark, lab machine, 8 workers:
 uv run python examples/benchmarks/aggregated_asymptotic_runtime.py --workers 8
 ```
 
-Defaults: 100 replicates per condition x 4 conditions = 400 timed runs,
-plus 100 α_TG replicates on the same samples.
+Defaults: 100 replicates per condition x 4 conditions = 400 timed runs.
 Each replicate samples 1,000 genes without replacement; the same
 per-replicate seeds are reused across the grid so across-condition
 variance is method-driven, not sample-driven.

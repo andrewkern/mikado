@@ -37,7 +37,6 @@ from pathlib import Path
 
 import numpy as np
 
-from mkado.analysis.alpha_tg import alpha_tg_from_gene_data
 from mkado.analysis.asymptotic import (
     PolymorphismData,
     asymptotic_mk_test_aggregated,
@@ -64,16 +63,6 @@ CSV_FIELDNAMES = (
     "ci_high",
     "num_bins",
     "ci_replicates",
-)
-
-ALPHA_TG_CSV_FIELDNAMES = (
-    "replicate_idx",
-    "n_genes",
-    "wall_time_seconds",
-    "alpha_tg",
-    "ci_low",
-    "ci_high",
-    "bootstrap_replicates",
 )
 
 SCALING_CSV_FIELDNAMES = (
@@ -184,6 +173,7 @@ def run_replicates(
     base_seed: int,
     num_bins: int,
     workers: int = 1,
+    bootstrap_replicates: int = 100,
 ) -> list[dict]:
     """Sample n_genes without replacement and time the aggregated test.
 
@@ -195,9 +185,9 @@ def run_replicates(
     if n_total < n_genes:
         sys.exit(f"only {n_total} genes available; cannot sample {n_genes} without replacement")
 
-    # Realistic CLI defaults: MC samples params from a covariance matrix
-    # (cheap, ~10000x); bootstrap refits per replicate (~100x).
-    ci_replicates = 10000 if ci_method == "monte-carlo" else 100
+    # MC samples params from a covariance matrix (cheap, ~10000x by convention);
+    # bootstrap refits per replicate, so its replicate count is the user-tunable knob.
+    ci_replicates = 10000 if ci_method == "monte-carlo" else bootstrap_replicates
 
     rows: list[dict] = []
     for replicate_idx in range(n_replicates):
@@ -245,61 +235,6 @@ def run_replicates(
     return rows
 
 
-def run_replicates_alpha_tg(
-    poly_data: list[PolymorphismData],
-    *,
-    n_genes: int,
-    n_replicates: int,
-    base_seed: int,
-    bootstrap_replicates: int,
-) -> list[dict]:
-    """Per-replicate Tarone-Greenland alpha on the same 1,000-gene samples.
-
-    Uses identical per-replicate seeds as ``run_replicates`` so each row in
-    this CSV pairs 1:1 with the four asymptotic rows for the same sample
-    -- the manuscript can show all five alpha estimators on a common axis.
-    """
-    n_total = len(poly_data)
-    if n_total < n_genes:
-        sys.exit(f"only {n_total} genes available; cannot sample {n_genes} without replacement")
-
-    rows: list[dict] = []
-    for replicate_idx in range(n_replicates):
-        seed = base_seed + replicate_idx
-        rng = np.random.default_rng(seed)
-        idx = rng.choice(n_total, size=n_genes, replace=False)
-        sample = [poly_data[i] for i in idx]
-
-        start = time.perf_counter()
-        result = alpha_tg_from_gene_data(
-            gene_data=sample,
-            bootstrap_replicates=bootstrap_replicates,
-            seed=seed,
-        )
-        wall = time.perf_counter() - start
-
-        rows.append(
-            {
-                "replicate_idx": replicate_idx,
-                "n_genes": n_genes,
-                "wall_time_seconds": wall,
-                "alpha_tg": result.alpha_tg,
-                "ci_low": result.ci_low,
-                "ci_high": result.ci_high,
-                "bootstrap_replicates": bootstrap_replicates,
-            }
-        )
-        if (replicate_idx + 1) % 10 == 0 or replicate_idx == n_replicates - 1:
-            logger.info(
-                "[alpha_tg] replicate %d/%d  alpha=%.4f  wall=%.3fs",
-                replicate_idx + 1,
-                n_replicates,
-                result.alpha_tg,
-                wall,
-            )
-    return rows
-
-
 def run_scaling_sweep(
     *,
     alignment_dir: Path,
@@ -312,6 +247,7 @@ def run_scaling_sweep(
     n_replicates: int,
     base_seed: int,
     num_bins: int,
+    bootstrap_replicates: int = 100,
 ) -> list[dict]:
     """End-to-end pipeline timing across worker counts.
 
@@ -345,6 +281,7 @@ def run_scaling_sweep(
                         base_seed=base_seed,
                         num_bins=num_bins,
                         workers=n_workers,
+                        bootstrap_replicates=bootstrap_replicates,
                     )
             asymptotic_seconds = time.perf_counter() - asym_start
             total_seconds = extraction_seconds + asymptotic_seconds
@@ -397,7 +334,6 @@ def make_figure(
     n_genes: int,
     n_total_genes: int,
     workers: int,
-    alpha_tg_rows: list[dict] | None = None,
     scaling_rows: list[dict] | None = None,
 ) -> None:
     import matplotlib.pyplot as plt
@@ -405,7 +341,6 @@ def make_figure(
 
     sns.set_theme(style="darkgrid")
     palette = ["#2c3e50", "#e74c3c", "#3498db", "#e67e22"]
-    alpha_tg_color = "#27ae60"
 
     times = np.array([r["wall_time_seconds"] for r in rows])
     alphas = np.array([r["alpha_asymptotic"] for r in rows])
@@ -453,45 +388,30 @@ def make_figure(
         sc_extract = np.array([r["extraction_seconds"] for r in scaling_rows])
         sc_asym = np.array([r["asymptotic_seconds"] for r in scaling_rows])
         sc_order = sorted(set(sc_workers.tolist()))
-        pos_map = {w: i for i, w in enumerate(sc_order)}
-        positions = list(range(len(sc_order)))
 
-        ax_scaling.boxplot(
-            [sc_total[sc_workers == w] for w in sc_order],
-            positions=positions,
-            widths=0.5,
-            patch_artist=True,
-            boxprops={"facecolor": palette[0], "alpha": 0.4, "edgecolor": palette[0]},
-            medianprops={"color": "white", "linewidth": 1.5},
-            whiskerprops={"color": palette[0]},
-            capprops={"color": palette[0]},
-            showfliers=False,
-        )
-        sc_offsets = np.array([pos_map[w] for w in sc_workers], dtype=float)
-        jitter = np.random.default_rng(0).uniform(-0.08, 0.08, size=len(sc_offsets))
-        ax_scaling.scatter(
-            sc_offsets + jitter,
-            sc_extract,
-            color=palette[1],
-            edgecolor="white",
-            linewidth=0.4,
-            s=40,
-            label="extraction",
-            zorder=3,
-        )
-        ax_scaling.scatter(
-            sc_offsets + jitter,
-            sc_asym,
-            color=palette[2],
-            edgecolor="white",
-            linewidth=0.4,
-            s=40,
-            label="asymptotic runs",
-            zorder=3,
-        )
-        ax_scaling.set_xticks(positions)
+        # Median across reps per worker count -- with one rep this just plots
+        # the single value; with three the line tracks the typical run cost.
+        def _median_at(values: np.ndarray, w: int) -> float:
+            return float(np.median(values[sc_workers == w]))
+
+        median_total = [_median_at(sc_total, w) for w in sc_order]
+        median_extract = [_median_at(sc_extract, w) for w in sc_order]
+        median_asym = [_median_at(sc_asym, w) for w in sc_order]
+
+        line_specs = [
+            ("total", median_total, palette[0]),
+            ("extraction", median_extract, palette[1]),
+            ("asymptotic runs", median_asym, palette[2]),
+        ]
+        for label, ys, color in line_specs:
+            ax_scaling.plot(
+                sc_order, ys, color=color, marker="o", linewidth=2, markersize=7, label=label
+            )
+
+        ax_scaling.set_xticks(sc_order)
         ax_scaling.set_xticklabels([str(w) for w in sc_order])
         ax_scaling.set_yscale("log")
+        ax_scaling.set_xscale("log", base=2)
         ax_scaling.set_ylabel("End-to-end wall time (s, log scale)", fontsize=12)
         ax_scaling.set_xlabel("Workers (extraction parallelism)", fontsize=12)
         ax_scaling.set_title("Pipeline runtime vs worker count", fontsize=13, fontweight="bold")
@@ -513,38 +433,6 @@ def make_figure(
         ylabel=r"Asymptotic $\alpha$",
         title="Estimated asymptotic alpha",
     )
-    if alpha_tg_rows:
-        # Overlay alpha_TG point estimates at a fifth, slightly-offset x position.
-        tg_alphas = np.array([r["alpha_tg"] for r in alpha_tg_rows])
-        tg_x = np.full(len(tg_alphas), len(order))
-        ax_alpha.scatter(
-            tg_x + np.random.default_rng(0).uniform(-0.15, 0.15, size=len(tg_x)),
-            tg_alphas,
-            color=alpha_tg_color,
-            edgecolor="white",
-            linewidth=0.4,
-            s=30,
-            alpha=0.7,
-            zorder=3,
-            label=r"$\alpha_{TG}$",
-        )
-        # Boxplot for alpha_TG at the same x position.
-        ax_alpha.boxplot(
-            tg_alphas,
-            positions=[len(order)],
-            widths=0.5,
-            patch_artist=True,
-            boxprops={"facecolor": alpha_tg_color, "alpha": 0.4, "edgecolor": alpha_tg_color},
-            medianprops={"color": "white", "linewidth": 1.5},
-            whiskerprops={"color": alpha_tg_color},
-            capprops={"color": alpha_tg_color},
-            showfliers=False,
-        )
-        labels = list(order) + [r"$\alpha_{TG}$"]
-        ax_alpha.set_xticks(range(len(labels)))
-        ax_alpha.set_xticklabels(labels)
-        ax_alpha.set_xlabel("estimator / condition", fontsize=12)
-        ax_alpha.legend(loc="upper right", fontsize=9)
 
     fig.suptitle(
         (
@@ -575,6 +463,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--outgroup-match", default="Pan_troglodytes")
     parser.add_argument("--n-genes", type=int, default=1000)
     parser.add_argument("--n-replicates", type=int, default=100)
+    parser.add_argument(
+        "--bootstrap-replicates",
+        type=int,
+        default=100,
+        help=(
+            "Bootstrap replicates per CI computation when ci_method=bootstrap "
+            "(default 100). Higher values give tighter CIs at proportionally "
+            "higher per-call cost."
+        ),
+    )
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--num-bins", type=int, default=20)
     parser.add_argument("--seed", type=int, default=42)
@@ -594,21 +492,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=DEFAULT_BENCH_DIR / "figures" / "aggregated_asymptotic_runtime.png",
     )
     parser.add_argument("--no-plot", action="store_true")
-    parser.add_argument(
-        "--no-alpha-tg",
-        action="store_true",
-        help="Skip the per-replicate alpha_TG comparison run.",
-    )
-    parser.add_argument(
-        "--alpha-tg-bootstrap",
-        type=int,
-        default=200,
-        help=(
-            "Bootstrap replicates for alpha_TG CI per sample (default 200). "
-            "alpha_tg_from_gene_data's library default is 1000; 200 is plenty "
-            "for the manuscript figure and keeps the comparison cheap."
-        ),
-    )
     parser.add_argument(
         "--scaling",
         action="store_true",
@@ -639,7 +522,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         args.n_genes = 3
         args.n_replicates = 2
         args.workers = 2
-        args.alpha_tg_bootstrap = 50
         args.scaling_workers = "1,2"
         args.scaling_reps = 2
         args.cache = DEFAULT_BENCH_DIR / "cache" / "smoke_poly_data.pkl"
@@ -689,18 +571,9 @@ def main(argv: list[str] | None = None) -> None:
                     base_seed=args.seed,
                     num_bins=args.num_bins,
                     workers=args.workers,
+                    bootstrap_replicates=args.bootstrap_replicates,
                 )
             )
-
-    alpha_tg_rows: list[dict] = []
-    if not args.no_alpha_tg:
-        alpha_tg_rows = run_replicates_alpha_tg(
-            poly_data,
-            n_genes=args.n_genes,
-            n_replicates=args.n_replicates,
-            base_seed=args.seed,
-            bootstrap_replicates=args.alpha_tg_bootstrap,
-        )
 
     scaling_rows: list[dict] = []
     if args.scaling:
@@ -724,6 +597,7 @@ def main(argv: list[str] | None = None) -> None:
                 n_replicates=args.n_replicates,
                 base_seed=args.seed,
                 num_bins=args.num_bins,
+                bootstrap_replicates=args.bootstrap_replicates,
             )
         finally:
             args.cache.unlink(missing_ok=True)
@@ -731,9 +605,6 @@ def main(argv: list[str] | None = None) -> None:
                 saved_cache.rename(args.cache)
 
     write_csv(rows, args.csv, extraction_seconds)
-    if alpha_tg_rows:
-        alpha_tg_path = args.csv.with_name(args.csv.stem + "_alpha_tg.csv")
-        write_simple_csv(alpha_tg_rows, alpha_tg_path, ALPHA_TG_CSV_FIELDNAMES)
     if scaling_rows:
         scaling_path = args.csv.with_name(args.csv.stem + "_scaling.csv")
         write_simple_csv(scaling_rows, scaling_path, SCALING_CSV_FIELDNAMES)
@@ -746,7 +617,6 @@ def main(argv: list[str] | None = None) -> None:
             n_genes=args.n_genes,
             n_total_genes=len(poly_data),
             workers=extraction_workers,
-            alpha_tg_rows=alpha_tg_rows or None,
             scaling_rows=scaling_rows or None,
         )
 
