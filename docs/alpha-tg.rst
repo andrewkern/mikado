@@ -49,6 +49,25 @@ Example with the included Anopheles data:
 
    mkado batch examples/anopheles_batch/ -i gamb -o afun --alpha-tg
 
+Frequency-Threshold Correction (FWW)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To reduce the bias from low-frequency slightly deleterious polymorphisms,
+α_TG can be combined with a derived allele frequency cutoff
+(`Fay, Wyckoff & Wu 2001`_) by passing ``--min-freq``:
+
+.. code-block:: bash
+
+   # FWW-corrected weighted alpha: drop polymorphisms with derived AF < 0.15
+   mkado batch alignments/ -i ingroup -o outgroup --alpha-tg --min-freq 0.15
+
+The ``--min-freq`` filter is applied per gene before α_TG is computed,
+so the weighted estimator sees only the high-frequency polymorphisms.
+``--no-singletons`` is the convenience equivalent of
+``--min-freq 1/n``.
+
+.. _Fay, Wyckoff & Wu 2001: https://doi.org/10.1093/genetics/158.3.1227
+
 Output
 ------
 
