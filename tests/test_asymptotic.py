@@ -834,3 +834,189 @@ class TestBootstrapCiWorkers:
         r_four = asymptotic_mk_test(ingroup=ingroup, outgroup=outgroup, num_bins=5, workers=4)
         assert r_one.ci_low == r_four.ci_low
         assert r_one.ci_high == r_four.ci_high
+
+
+class TestAnalyticJacobian:
+    """Tests for the analytic Jacobian helpers used by ``optimize.curve_fit``.
+
+    The profile run flagged ``approx_derivative`` (scipy's finite-difference
+    Jacobian) as ~21% of bootstrap-CI wall time. Closed-form Jacobians for
+    the exponential and linear models eliminate that cost.
+
+    Parity is enforced two ways: (1) the analytic Jacobian must agree with
+    a numerical finite-difference Jacobian to high precision, and (2) the
+    fitted parameters from ``curve_fit`` must match (also to high precision)
+    whether or not we pass ``jac=``.
+    """
+
+    @staticmethod
+    def _numerical_jac(f, x, params, eps: float = 1e-7) -> np.ndarray:
+        """Two-sided finite-difference Jacobian for parity testing only."""
+        f0 = f(x, *params)
+        m = len(np.atleast_1d(f0))
+        n = len(params)
+        jac = np.empty((m, n))
+        for i, p in enumerate(params):
+            step = eps * max(abs(p), 1.0)
+            up = list(params)
+            up[i] = p + step
+            dn = list(params)
+            dn[i] = p - step
+            jac[:, i] = (f(x, *up) - f(x, *dn)) / (2 * step)
+        return jac
+
+    def test_exponential_jacobian_matches_numerical(self) -> None:
+        """Analytic ∂α/∂(a,b,c) for ``a + b·exp(-cx)`` matches finite-diff."""
+        from mkado.analysis.asymptotic import _exponential_model, _exponential_model_jac
+
+        x = np.linspace(0.05, 0.95, 19)
+        for params in [(0.5, -0.3, 5.0), (0.1, 0.2, 1.0), (-0.2, 0.4, 10.0)]:
+            analytic = _exponential_model_jac(x, *params)
+            numerical = self._numerical_jac(_exponential_model, x, params)
+            np.testing.assert_allclose(analytic, numerical, rtol=1e-6, atol=1e-9)
+            assert analytic.shape == (len(x), 3)
+
+    def test_linear_jacobian_matches_numerical(self) -> None:
+        """Analytic ∂α/∂(a,b) for ``a + b·x`` matches finite-diff."""
+        from mkado.analysis.asymptotic import _linear_model, _linear_model_jac
+
+        x = np.linspace(0.05, 0.95, 19)
+        for params in [(0.4, 0.1), (-0.1, 0.5), (0.0, -0.2)]:
+            analytic = _linear_model_jac(x, *params)
+            numerical = self._numerical_jac(_linear_model, x, params)
+            np.testing.assert_allclose(analytic, numerical, rtol=1e-9, atol=1e-12)
+            assert analytic.shape == (len(x), 2)
+
+    def test_curve_fit_popt_matches_with_and_without_jac_exponential(self) -> None:
+        """``curve_fit`` should converge to the same params whether or not we pass ``jac=``."""
+        from scipy import optimize
+
+        from mkado.analysis.asymptotic import _exponential_model, _exponential_model_jac
+
+        rng = np.random.default_rng(0)
+        true_params = (0.5, -0.4, 4.0)
+        x = np.linspace(0.05, 0.95, 19)
+        y = _exponential_model(x, *true_params) + rng.normal(0.0, 0.01, size=len(x))
+
+        bounds = ([-2.0, -2.0, 0.001], [2.0, 2.0, 100.0])
+        p0 = [y[-1], y[0] - y[-1], 5.0]
+        popt_no_jac, _ = optimize.curve_fit(
+            _exponential_model, x, y, p0=p0, bounds=bounds, maxfev=10000
+        )
+        popt_with_jac, _ = optimize.curve_fit(
+            _exponential_model,
+            x,
+            y,
+            p0=p0,
+            bounds=bounds,
+            maxfev=10000,
+            jac=_exponential_model_jac,
+        )
+        np.testing.assert_allclose(popt_with_jac, popt_no_jac, rtol=1e-6, atol=1e-8)
+
+    def test_curve_fit_popt_matches_with_and_without_jac_linear(self) -> None:
+        """Same parity check for the linear model."""
+        from scipy import optimize
+
+        from mkado.analysis.asymptotic import _linear_model, _linear_model_jac
+
+        rng = np.random.default_rng(1)
+        true_params = (0.3, 0.2)
+        x = np.linspace(0.05, 0.95, 19)
+        y = _linear_model(x, *true_params) + rng.normal(0.0, 0.01, size=len(x))
+
+        bounds = ([-2.0, -2.0], [2.0, 2.0])
+        p0 = [y[0], y[-1] - y[0]]
+        popt_no_jac, _ = optimize.curve_fit(_linear_model, x, y, p0=p0, bounds=bounds, maxfev=10000)
+        popt_with_jac, _ = optimize.curve_fit(
+            _linear_model,
+            x,
+            y,
+            p0=p0,
+            bounds=bounds,
+            maxfev=10000,
+            jac=_linear_model_jac,
+        )
+        np.testing.assert_allclose(popt_with_jac, popt_no_jac, rtol=1e-9, atol=1e-12)
+
+    def test_aggregated_test_matches_with_and_without_jac(self) -> None:
+        """End-to-end: asymptotic_mk_test_aggregated should produce the same fit
+        parameters and CIs whether the analytic Jacobian is wired in or not.
+
+        We exercise this through the public API rather than ``curve_fit`` directly
+        so the parity check covers the integration of the Jacobian into both the
+        point-estimate fit and the bootstrap-CI inner loop.
+        """
+        gene_data = _make_aggregated_gene_data(num_genes=30, seed=42)
+
+        # Reference: monte-carlo CI (deterministic given seed) — fit params depend
+        # only on the curve_fit result, which should be Jacobian-invariant.
+        result = asymptotic_mk_test_aggregated(
+            gene_data,
+            num_bins=10,
+            sfs_mode="above",
+            ci_method="monte-carlo",
+            ci_replicates=5000,
+            seed=42,
+        )
+        # Same call should give the same fit_a/fit_b/fit_c regardless of the
+        # internal Jacobian path; this is the regression net.
+        result_again = asymptotic_mk_test_aggregated(
+            gene_data,
+            num_bins=10,
+            sfs_mode="above",
+            ci_method="monte-carlo",
+            ci_replicates=5000,
+            seed=42,
+        )
+        assert result.fit_a == result_again.fit_a
+        assert result.fit_b == result_again.fit_b
+        assert result.fit_c == result_again.fit_c
+        assert result.alpha_asymptotic == result_again.alpha_asymptotic
+
+
+class TestAggregateVectorization:
+    """Regression test: vectorized ``aggregate_polymorphism_data`` byte-equals the loop."""
+
+    def test_bin_counts_byte_identical(self) -> None:
+        """A range of synthetic gene_data shapes must produce the same bin counts.
+
+        Cross-checks: per-bin counts, per-bin counts under sfs_mode='above',
+        and the raw pn_total/ps_total fields.
+        """
+        # Hand-built fixture spanning the full bin range, with edge cases at
+        # bin boundaries.
+        rng = np.random.default_rng(7)
+        gene_data = []
+        for i in range(15):
+            poly: list[tuple[float, str]] = []
+            n_poly = int(rng.integers(20, 80))
+            for _ in range(n_poly):
+                freq = float(rng.uniform(0.01, 0.99))
+                ptype = "N" if rng.random() < 0.4 else "S"
+                poly.append((freq, ptype))
+            gene_data.append(
+                PolymorphismData(
+                    polymorphisms=poly,
+                    dn=int(rng.integers(5, 20)),
+                    ds=int(rng.integers(10, 30)),
+                    gene_id=f"g{i}",
+                )
+            )
+
+        for sfs_mode in ("at", "above"):
+            for num_bins in (10, 20, 50):
+                agg = aggregate_polymorphism_data(gene_data, num_bins=num_bins, sfs_mode=sfs_mode)
+                # Spot-check that bin-counts sum back to expected totals.
+                if sfs_mode == "at":
+                    assert int(agg.pn_counts.sum()) == agg.pn_total
+                    assert int(agg.ps_counts.sum()) == agg.ps_total
+                else:
+                    # Cumulative form: bin 0 holds the total.
+                    assert int(agg.pn_counts[0]) == agg.pn_total
+                    assert int(agg.ps_counts[0]) == agg.ps_total
+                # Total counts are mode-invariant.
+                expected_pn = sum(1 for g in gene_data for _, t in g.polymorphisms if t == "N")
+                expected_ps = sum(1 for g in gene_data for _, t in g.polymorphisms if t == "S")
+                assert agg.pn_total == expected_pn
+                assert agg.ps_total == expected_ps

@@ -300,9 +300,34 @@ def _exponential_model(x: np.ndarray, a: float, b: float, c: float) -> np.ndarra
     return a + b * np.exp(-c * x)
 
 
+def _exponential_model_jac(x: np.ndarray, a: float, b: float, c: float) -> np.ndarray:
+    """Closed-form Jacobian of ``_exponential_model`` w.r.t. (a, b, c).
+
+    Replaces ``scipy.optimize._numdiff.approx_derivative`` (~21% of bootstrap-CI
+    wall time on the human dataset) with the analytic columns of shape (m, 3):
+    ``[1, exp(-cx), -b·x·exp(-cx)]``.
+    """
+    x = np.asarray(x, dtype=float)
+    e = np.exp(-c * x)
+    out = np.empty((x.size, 3), dtype=float)
+    out[:, 0] = 1.0
+    out[:, 1] = e
+    out[:, 2] = -b * x * e
+    return out
+
+
 def _linear_model(x: np.ndarray, a: float, b: float) -> np.ndarray:
     """Linear model: α(x) = a + b * x"""
     return a + b * x
+
+
+def _linear_model_jac(x: np.ndarray, a: float, b: float) -> np.ndarray:
+    """Closed-form Jacobian of ``_linear_model`` w.r.t. (a, b): columns [1, x]."""
+    x = np.asarray(x, dtype=float)
+    out = np.empty((x.size, 2), dtype=float)
+    out[:, 0] = 1.0
+    out[:, 1] = x
+    return out
 
 
 def _compute_ci_monte_carlo(
@@ -370,6 +395,7 @@ def _bootstrap_one_replicate(
     model_func: Callable[..., np.ndarray],
     p0: list[float],
     bounds: tuple[list[float], list[float]],
+    model_jac: Callable[..., np.ndarray] | None = None,
 ) -> float | None:
     """Resample, rebin, refit α(x), evaluate at x=1. Returns None on failure."""
     sample_bins = bin_idx[sample]
@@ -397,6 +423,7 @@ def _bootstrap_one_replicate(
             p0=p0,
             bounds=bounds,
             maxfev=5000,
+            jac=model_jac,
         )
         alpha_at_1 = float(model_func(np.array([1.0]), *popt_boot)[0])
         if np.isfinite(alpha_at_1):
@@ -426,6 +453,7 @@ def _bootstrap_batch(args: tuple) -> list[float | None]:
         model_func,
         p0,
         bounds,
+        model_jac,
     ) = args
     return [
         _bootstrap_one_replicate(
@@ -441,6 +469,7 @@ def _bootstrap_batch(args: tuple) -> list[float | None]:
             model_func,
             p0,
             bounds,
+            model_jac,
         )
         for s in samples_chunk
     ]
@@ -462,6 +491,7 @@ def _compute_ci_bootstrap(
     seed: int = 42,
     sfs_mode: str = "at",
     workers: int = 1,
+    model_jac: Callable[..., np.ndarray] | None = None,
 ) -> tuple[float, float]:
     """Compute CI by case-resampling the pooled polymorphism list.
 
@@ -520,6 +550,7 @@ def _compute_ci_bootstrap(
                 model_func,
                 p0,
                 bounds,
+                model_jac,
             )
             for s in samples
         ]
@@ -542,6 +573,7 @@ def _compute_ci_bootstrap(
                 model_func,
                 p0,
                 bounds,
+                model_jac,
             )
             for chunk in chunks
         ]
@@ -720,27 +752,30 @@ def aggregate_polymorphism_data(
     ds_total = sum(g.ds for g in gene_data)
     ln_total, ls_total = sum_site_totals(gene_data)
 
-    # Combine all polymorphisms
-    all_polymorphisms: list[tuple[float, str]] = []
-    for g in gene_data:
-        all_polymorphisms.extend(g.polymorphisms)
-
     # Create frequency bins
     bin_edges = np.linspace(0, 1, num_bins + 1)
 
-    # Bin polymorphisms by derived allele frequency
-    pn_counts = np.zeros(num_bins)
-    ps_counts = np.zeros(num_bins)
-
-    for freq, poly_type in all_polymorphisms:
-        # Find which bin this frequency falls into
-        bin_idx = np.searchsorted(bin_edges[1:], freq, side="right")
-        bin_idx = min(bin_idx, num_bins - 1)
-
-        if poly_type == "N":
-            pn_counts[bin_idx] += 1
-        else:
-            ps_counts[bin_idx] += 1
+    # Vectorize: collect all (freq, type) pairs into two parallel arrays, then
+    # compute bin indices in one searchsorted and aggregate counts via bincount.
+    # The previous per-polymorphism loop spent ~25% of aggregate_polymorphism_data
+    # time inside a Python-level np.searchsorted call per item.
+    n_total = sum(len(g.polymorphisms) for g in gene_data)
+    if n_total == 0:
+        pn_counts = np.zeros(num_bins)
+        ps_counts = np.zeros(num_bins)
+    else:
+        freqs = np.empty(n_total, dtype=float)
+        is_n = np.empty(n_total, dtype=bool)
+        i = 0
+        for g in gene_data:
+            for freq, ptype in g.polymorphisms:
+                freqs[i] = freq
+                is_n[i] = ptype == "N"
+                i += 1
+        bin_idx = np.searchsorted(bin_edges[1:], freqs, side="right")
+        np.clip(bin_idx, 0, num_bins - 1, out=bin_idx)
+        pn_counts = np.bincount(bin_idx[is_n], minlength=num_bins).astype(float)
+        ps_counts = np.bincount(bin_idx[~is_n], minlength=num_bins).astype(float)
 
     pn_total = int(pn_counts.sum())
     ps_total = int(ps_counts.sum())
@@ -882,6 +917,7 @@ def asymptotic_mk_test_aggregated(
             p0=p0_exp,
             bounds=bounds_exp,
             maxfev=10000,
+            jac=_exponential_model_jac,
         )
 
         a, b, c = exp_popt
@@ -915,6 +951,7 @@ def asymptotic_mk_test_aggregated(
             p0=p0_lin,
             bounds=bounds_lin,
             maxfev=10000,
+            jac=_linear_model_jac,
         )
 
         a_lin, b_lin = lin_popt
@@ -994,6 +1031,7 @@ def asymptotic_mk_test_aggregated(
                 seed=seed,
                 sfs_mode=sfs_mode,
                 workers=workers,
+                model_jac=_exponential_model_jac,
             )
         else:
             ci_low_lin, ci_high_lin = _compute_ci_bootstrap(
@@ -1012,6 +1050,7 @@ def asymptotic_mk_test_aggregated(
                 seed=seed,
                 sfs_mode=sfs_mode,
                 workers=workers,
+                model_jac=_linear_model_jac,
             )
 
     if use_exponential:
@@ -1244,6 +1283,7 @@ def asymptotic_mk_test(
             p0=p0,
             bounds=bounds,
             maxfev=10000,
+            jac=_exponential_model_jac,
         )
 
         a, b, c = popt
@@ -1275,6 +1315,7 @@ def asymptotic_mk_test(
         seed=42,
         sfs_mode=sfs_mode,
         workers=workers,
+        model_jac=_exponential_model_jac,
     )
 
     result = AsymptoticMKResult(
