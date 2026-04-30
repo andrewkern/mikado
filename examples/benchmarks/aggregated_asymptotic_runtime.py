@@ -183,6 +183,7 @@ def run_replicates(
     n_replicates: int,
     base_seed: int,
     num_bins: int,
+    workers: int = 1,
 ) -> list[dict]:
     """Sample n_genes without replacement and time the aggregated test.
 
@@ -213,6 +214,7 @@ def run_replicates(
             ci_method=ci_method,
             seed=seed,
             sfs_mode=sfs_mode,
+            workers=workers,
         )
         wall = time.perf_counter() - start
 
@@ -342,6 +344,7 @@ def run_scaling_sweep(
                         n_replicates=n_replicates,
                         base_seed=base_seed,
                         num_bins=num_bins,
+                        workers=n_workers,
                     )
             asymptotic_seconds = time.perf_counter() - asym_start
             total_seconds = extraction_seconds + asymptotic_seconds
@@ -685,6 +688,7 @@ def main(argv: list[str] | None = None) -> None:
                     n_replicates=args.n_replicates,
                     base_seed=args.seed,
                     num_bins=args.num_bins,
+                    workers=args.workers,
                 )
             )
 
