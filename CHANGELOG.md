@@ -1,8 +1,28 @@
 # Changelog
 
-## [Unreleased]
+## [0.5.0] - 2026-05-01
+
+Round-1 revision feature release for the MKado applications note
+(G3, MS G3-2026-406681). Adds the asymptotic-MK options reviewers
+asked for, plus omega-decomposition reporting, performance work, and
+documentation expansions; one small breaking change is the removal
+of the Typer shell-completion options on the umbrella command.
 
 ### Added
+- `--sfs-mode {at, above}` flag on `test`, `batch`, and `vcf` commands
+  (closes #8). The `at` mode is the original per-bin SFS construction
+  of Messer & Petrov (2013), in which `Pn(x)` and `Ps(x)` count
+  polymorphic sites with derived allele frequency *equal to* x. The
+  new `above` mode is the cumulative inclusive variant of Uricchio
+  et al. (2019), in which `Pn(x)` and `Ps(x)` count polymorphic sites
+  with derived allele frequency *at or above* x; the cumulative form
+  has the same asymptote at x = 1 but is more robust to bin-count
+  sparsity in large samples. Default remains `at` for backward
+  compatibility.
+- `--output / -O PATH` flag on `test`, `batch`, and `vcf` commands.
+  Writes the formatted output to a named file rather than to stdout;
+  progress bar and feedback messages remain on stderr. The
+  `--format` flag continues to control human-readable / TSV / JSON.
 - Nei-Gojobori site totals on every result dataclass (`MKResult`,
   `AsymptoticMKResult`, `PolarizedMKResult`, `ImputedMKResult`,
   `AlphaTGResult`) as `ln` and `ls` fields. Aggregated and per-gene
@@ -54,6 +74,35 @@
 - `_compute_ci_bootstrap()` helper in `mkado.analysis.asymptotic`
   alongside the existing `_compute_ci_monte_carlo()`.
 - `_bootstrap_imputed_alpha()` helper in `mkado.analysis.imputed`.
+- `examples/benchmarks/aggregated_asymptotic_runtime.py`
+  (closes #11): reproducible runtime benchmark for
+  `asymptotic_mk_test_aggregated` in the regime where the test is
+  statistically reliable (~1,000 random genes per replicate, 100
+  replicates per condition, full 2x2 grid of `sfs_mode` x
+  `ci_method`). Polymorphism extraction is amortized via on-disk
+  cache; figure caption and CSV header record the one-time
+  extraction wall time so the cost composition is unambiguous.
+  `--scaling` flag adds an end-to-end worker-count sweep
+  (8/16/32/64). Documented at `examples/benchmarks/README.md`.
+- `--workers N` exposed end-to-end on `test`, `batch`, and `vcf`
+  (single CLI knob threads through to extraction and to the
+  aggregated bootstrap-CI inner loop alike).
+- "Working with Ortholog Alignments" tutorial section in
+  `docs/tutorial.rst` documenting the OrthoMaM-style polymorphism-
+  projection procedure used to assemble the human benchmark dataset
+  (alignment matching, VCF extraction, haplotype assembly, alignment
+  re-gapping, multi-transcript reconciliation).
+- "Per-gene vs Aggregated Modes" section in `docs/batch-workflow.rst`
+  explicitly contrasting `--aggregate` and `--per-gene`, naming the
+  default for each test, and explaining why aggregation is the
+  default for asymptotic MK.
+- "Frequency-Threshold Correction (FWW)" subsection in
+  `docs/alpha-tg.rst` showing how to combine `--alpha-tg` with
+  `--min-freq X` to apply the Fay/Wyckoff/Wu correction within the
+  Tarone-Greenland weighted estimate.
+- "SFS Construction: At-x vs Above-x" section in `docs/asymptotic.rst`
+  with the math and Uricchio 2019 citation.
+- bioRxiv preprint badge in `README.md`.
 
 ### Performance
 - `_bootstrap_imputed_alpha()` is now vectorized: pre-extracts numpy
@@ -68,6 +117,20 @@
   the shared `_compute_ci_bootstrap()` helper (closes #17). Removes
   ~60 lines of duplicate code, vectorizes the per-replicate binning,
   and aligns failure-handling between per-gene and aggregated paths.
+- Bootstrap CI inner loop parallelized via `ProcessPoolExecutor`
+  with batched dispatch (closes #25). `asymptotic_mk_test_aggregated`
+  with `--ci-method bootstrap` now scales across worker cores;
+  threads were tried first but `scipy.optimize.curve_fit` runs the
+  trust-region iteration in pure Python and holds the GIL.
+- Analytic Jacobian for the asymptotic exponential and linear models
+  (`_exponential_model_jac`, `_linear_model_jac`) replaces SciPy's
+  finite-difference `approx_derivative` in `curve_fit`. Combined
+  with vectorization of `aggregate_polymorphism_data` (using
+  `np.searchsorted` + `np.bincount` over preallocated arrays in
+  place of nested Python loops), this delivers ~28% end-to-end
+  speedup on the aggregated-asymptotic-bootstrap workload.
+  Numerically verified against the finite-difference path
+  (rtol 1e-6 to 1e-9) in `tests/test_asymptotic.py::TestAnalyticJacobian`.
 
 ### Fixed
 - `GeneticCode.translate` no longer uses `@lru_cache` on a bound method
@@ -90,6 +153,19 @@
   unchanged. New regression suite in `tests/test_output_format.py`
   guards both the convention and the absence of `"N/A"` in any output
   format.
+- "Third outgroup" wording corrected to "second outgroup" in
+  `docs/index.rst` and `README.md` (the polarized MK test uses two
+  outgroups in total: the divergence outgroup and a polarization
+  outgroup).
+- `__version__` is now sourced from package metadata via
+  `importlib.metadata.version("mkado")` instead of being hardcoded;
+  `pyproject.toml` is the single source of truth, so the runtime
+  version cannot drift from the released version. Module docstring
+  corrected from the original "mikado" name.
+- Per-gene `Pn`/`Ps` definitions tightened in result-dataclass
+  docstrings to match the manuscript Methods (default zero
+  threshold, `--min-freq`, `--no-singletons`, and the
+  `--pool-polymorphisms` vs DnaSP convention spelled out).
 
 ### Changed
 - Per-gene `asymptotic_mk_test` CI failure handling: replicates whose
@@ -98,6 +174,17 @@
   systematically). When fewer than half of replicates succeed, the CI
   degenerates to the point estimate. Matches the aggregated path's
   behavior added in #10.
+
+### Removed
+- Typer's `--install-completion` and `--show-completion` umbrella
+  options, by passing `add_completion=False` to the `Typer` app
+  constructor. Reviewer 2 reported that completion was painfully
+  slow on their system, which is consistent with `mkado`'s package
+  import cost (scipy.stats + scipy.optimize together dominate
+  start-up); every Tab press in completion mode pays this cost.
+  Removing the feature is the cleaner answer than documenting it
+  with a "may be slow" note. Users who genuinely want shell
+  completion can still hand-roll it with their shell of choice.
 
 ## [0.4.0] - 2026-03-17
 
