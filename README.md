@@ -15,7 +15,7 @@ A modern Python implementation of the McDonald-Kreitman test toolkit for detecti
 - **Imputed MK test**: Bias-corrected α via low- vs high-frequency synonymous-polymorphism imputation (Murga-Moreno et al. 2022)
 - **Tarone-Greenland α_TG**: Weighted multi-gene estimator that corrects for sample size heterogeneity (Stoletzki & Eyre-Walker 2011)
 - **Omega decomposition**: dN/dS plus adaptive (ω_a) / non-adaptive (ω_na) rates with 95% CIs (Gossmann, Keightley & Eyre-Walker 2012; Coronado-Zamora et al. 2019)
-- **Bootstrap CI option**: `--ci-method bootstrap` runs case-resampling refit per replicate as an alternative to the parametric Monte-Carlo CI (closes #10), with parallelized inner loop
+- **Bootstrap CI option**: `--ci-method bootstrap` runs case-resampling refit per replicate as an alternative to the parametric Monte-Carlo CI, with parallelized inner loop
 - **Alternate genetic codes**: 24 NCBI genetic code tables (mitochondrial, plastid, etc.) selectable by name
 - **VCF input**: Go directly from VCF + reference + GFF3 annotation to MK test results (no FASTA alignment needed)
 - **Batch processing**: Process multiple genes with parallel execution and Benjamini-Hochberg correction for multiple testing
